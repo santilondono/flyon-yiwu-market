@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: yiwu-lists
+    env: python
+    buildCommand: pip install -r requirements.txt && reflex init
+    startCommand: reflex run --env prod --backend-only
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: UPLOAD_DIR
+        value: assets/uploads
+    disk:
+      name: uploads
+      mountPath: /opt/render/project/src/assets/uploads
+      sizeGB: 5
