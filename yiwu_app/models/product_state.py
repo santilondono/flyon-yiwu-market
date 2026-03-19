@@ -1,4 +1,5 @@
 import reflex as rx
+
 from sqlalchemy import select
 import os, base64, io
 from datetime import datetime
@@ -52,7 +53,10 @@ class ProductState(AuthState):
     pf_notes: str = ""
 
     # Each item: {"preview_url": "https://...", "filepath": "folder/tmp_xxx.jpg", "is_temp": True}
-    pf_images: list[dict] = []
+    # Parallel lists for images (avoids dict field access issues in Reflex foreach)
+    pf_image_urls: list[str] = []      # preview URLs
+    pf_image_paths: list[str] = []     # server filepaths
+    pf_image_temps: list[bool] = []    # is_temp flags
 
     product_error: str = ""
     is_saving: bool = False
@@ -66,8 +70,11 @@ class ProductState(AuthState):
         if not self.is_authenticated:
             return rx.redirect("/login")
         list_id = self.router.page.params.get("list_id", "")
-        if list_id:
-            self._load_list_data(int(list_id))
+        try:
+            if list_id:
+                self._load_list_data(int(list_id))
+        except (ValueError, TypeError):
+            pass
 
     def _load_list_data(self, lid: int):
         self.is_loading_products = True
@@ -119,6 +126,7 @@ class ProductState(AuthState):
     def open_create_product(self):
         self._reset_form()
         self.editing_product_id = 0
+        self.is_saving = False
         self.show_product_modal = True
 
     def open_edit_product(self, product_id: int):
@@ -138,12 +146,11 @@ class ProductState(AuthState):
         self.pf_notes = p["notes"]
         paths = self._parse_image_paths(p["image_paths"])
         urls = p["image_urls"]
-        # Existing images — already on server with final name, not temp
-        self.pf_images = [
-            {"preview_url": url, "filepath": fp, "is_temp": False}
-            for url, fp in zip(urls, paths)
-        ]
+        self.pf_image_urls = list(urls)
+        self.pf_image_paths = list(paths)
+        self.pf_image_temps = [False] * len(paths)
         self.product_error = ""
+        self.is_saving = False
         self.show_product_modal = True
 
     def close_product_modal(self):
@@ -153,9 +160,9 @@ class ProductState(AuthState):
 
     def _cleanup_temp_images(self):
         """Delete temp images from server if product was not saved."""
-        for img in self.pf_images:
-            if img.get("is_temp") and img.get("filepath"):
-                delete_image(img["filepath"])
+        for fp, is_temp in zip(self.pf_image_paths, self.pf_image_temps):
+            if is_temp and fp:
+                delete_image(fp)
 
     def _reset_form(self):
         self.pf_store = ""
@@ -168,7 +175,9 @@ class ProductState(AuthState):
         self.pf_cbm = ""
         self.pf_material = ""
         self.pf_notes = ""
-        self.pf_images = []
+        self.pf_image_urls = []
+        self.pf_image_paths = []
+        self.pf_image_temps = []
         self.product_error = ""
 
     def set_pf_store(self, v): self.pf_store = v
@@ -184,11 +193,27 @@ class ProductState(AuthState):
 
     def remove_image(self, index: int):
         """Remove image from list — delete from server if temp."""
-        if 0 <= index < len(self.pf_images):
-            img = self.pf_images[index]
-            if img.get("is_temp") and img.get("filepath"):
-                delete_image(img["filepath"])
-            self.pf_images = [x for i, x in enumerate(self.pf_images) if i != index]
+        if 0 <= index < len(self.pf_image_paths):
+            if index < len(self.pf_image_temps) and self.pf_image_temps[index]:
+                delete_image(self.pf_image_paths[index])
+            self.pf_image_urls = [v for i, v in enumerate(self.pf_image_urls) if i != index]
+            self.pf_image_paths = [v for i, v in enumerate(self.pf_image_paths) if i != index]
+            self.pf_image_temps = [v for i, v in enumerate(self.pf_image_temps) if i != index]
+
+
+    def receive_uploaded_image(self, value: str):
+        """Receives filepath|||preview_url from JS via input on_change."""
+        if not value or "|||" not in value:
+            return
+        parts = value.split("|||", 1)
+        if len(parts) != 2:
+            return
+        filepath, preview_url = parts
+        if not filepath or not preview_url:
+            return
+        self.pf_image_urls = [*self.pf_image_urls, preview_url]
+        self.pf_image_paths = [*self.pf_image_paths, filepath]
+        self.pf_image_temps = [*self.pf_image_temps, True]
 
     async def handle_image_upload(self, files: list[rx.UploadFile]):
         """
@@ -210,7 +235,7 @@ class ProductState(AuthState):
                 continue
             try:
                 # Compress before uploading
-                compressed, content_type = compress_image(data, (1600, 1600), 82)
+                compressed, content_type = compress_image(data, (1000, 1000), 65)
                 # Upload as temp file
                 filepath = upload_temp_image(
                     folder=folder,
@@ -228,38 +253,36 @@ class ProductState(AuthState):
                 self.product_error = f"Upload error: {str(e)}"
 
         self.is_uploading_image = False
+        yield rx.call_script("document.getElementById('upload-spinner').style.display='none';")
 
     def save_product(self):
         if not self.pf_reference.strip() and not self.pf_description.strip():
             self.product_error = "Reference or description is required."
             return
         self.is_saving = True
+        self.product_error = ""
         yield
+
+        import pathlib
+        from yiwu_app.utils.image_client import httpx as _httpx, IMAGE_SERVER_URL, _headers
 
         ref = self.pf_reference.strip() or self.pf_description.strip()[:20]
         folder = self.current_list_folder or "default"
+        safe_ref = "".join(c if c.isalnum() or c in "-_" else "_" for c in ref) or "product"
 
-        # Rename temp images to final names based on reference
+        # Rename temp images to final names
         final_paths = []
         new_index = 1
-        for img in self.pf_images:
-            fp = img.get("filepath", "")
-            if img.get("is_temp") and fp:
-                # Rename tmp_xxx.jpg → REF001.jpg
-                final_paths_so_far = rename_images_for_reference(
-                    folder=folder,
-                    old_ref=fp.split("/")[-1].replace(".jpg", "").replace(".jpeg", "").replace(".png", "").replace(".webp", ""),
-                    new_ref=ref,
-                    current_paths=[fp],
-                )
-                # Use upload_image_to_folder naming logic directly
-                from yiwu_app.utils.image_client import sanitize_folder_name
-                import pathlib
+        for fp, is_temp in zip(self.pf_image_paths, self.pf_image_temps):
+            fp = str(fp)
+            is_temp = bool(is_temp)
+            if not fp:
+                new_index += 1
+                continue
+            if is_temp:
                 ext = pathlib.Path(fp).suffix or ".jpg"
-                safe_ref = "".join(c if c.isalnum() or c in "-_" else "_" for c in ref) or "product"
                 new_filename = f"{safe_ref}{ext}" if new_index == 1 else f"{safe_ref}_{new_index - 1}{ext}"
                 new_filepath = f"{folder}/{new_filename}"
-                from yiwu_app.utils.image_client import httpx as _httpx, IMAGE_SERVER_URL, _headers
                 try:
                     _httpx.post(
                         f"{IMAGE_SERVER_URL}/rename",
@@ -269,7 +292,7 @@ class ProductState(AuthState):
                     )
                     final_paths.append(new_filepath)
                 except Exception:
-                    final_paths.append(fp)  # keep original if rename fails
+                    final_paths.append(fp)
             else:
                 final_paths.append(fp)
             new_index += 1
@@ -277,72 +300,72 @@ class ProductState(AuthState):
         image_paths_str = ",".join(final_paths)
 
         def to_float(v):
-            try: return float(v) if v and v.strip() else None
+            try: return float(v) if v and str(v).strip() else None
             except: return None
 
         def to_int(v):
-            try: return int(v) if v and v.strip() else None
+            try: return int(v) if v and str(v).strip() else None
             except: return None
 
-        with rx.session() as session:
-            if self.editing_product_id:
-                p = session.get(Product, self.editing_product_id)
-                if p and p.list_id == self.current_list_id:
-                    old_ref = p.reference or ""
-                    new_ref = self.pf_reference.strip()
-                    if old_ref and new_ref and old_ref != new_ref:
-                        # Rename existing (non-temp) final images
-                        existing_paths = [
-                            img["filepath"] for img in self.pf_images
-                            if not img.get("is_temp") and img.get("filepath")
-                        ]
-                        if existing_paths:
-                            renamed = rename_images_for_reference(
-                                folder=folder, old_ref=old_ref,
-                                new_ref=new_ref, current_paths=existing_paths,
-                            )
-                            # Rebuild final_paths with renamed existing + new temp-renamed
-                            temp_paths = [
-                                img["filepath"] for img in self.pf_images
-                                if img.get("is_temp")
+        try:
+            with rx.session() as session:
+                if self.editing_product_id:
+                    p = session.get(Product, self.editing_product_id)
+                    if p and p.list_id == self.current_list_id:
+                        old_ref = p.reference or ""
+                        new_ref = self.pf_reference.strip()
+                        if old_ref and new_ref and old_ref != new_ref:
+                            existing_paths = [
+                                str(img["filepath"]) for img in self.pf_images
+                                if not img["is_temp"] and img["filepath"]
                             ]
-                            image_paths_str = ",".join(renamed + [fp for fp in final_paths if fp not in existing_paths])
-                    p.store = self.pf_store.strip()
-                    p.store_contact = self.pf_store_contact.strip()
-                    p.reference = self.pf_reference.strip()
-                    p.description = self.pf_description.strip()
-                    p.measurement = self.pf_measurement.strip()
-                    p.price = to_float(self.pf_price)
-                    p.qty = to_int(self.pf_qty)
-                    p.cbm = to_float(self.pf_cbm)
-                    p.material = self.pf_material.strip()
-                    p.notes = self.pf_notes.strip()
-                    p.image_paths = image_paths_str
-                    p.updated_at = datetime.utcnow()
-            else:
-                p = Product(
-                    list_id=self.current_list_id,
-                    store=self.pf_store.strip(),
-                    store_contact=self.pf_store_contact.strip(),
-                    reference=self.pf_reference.strip(),
-                    description=self.pf_description.strip(),
-                    measurement=self.pf_measurement.strip(),
-                    price=to_float(self.pf_price),
-                    qty=to_int(self.pf_qty),
-                    cbm=to_float(self.pf_cbm),
-                    material=self.pf_material.strip(),
-                    notes=self.pf_notes.strip(),
-                    image_paths=image_paths_str,
-                )
-                session.add(p)
-            lst = session.get(ProductList, self.current_list_id)
-            if lst:
-                lst.updated_at = datetime.utcnow()
-            session.commit()
+                            if existing_paths:
+                                renamed = rename_images_for_reference(
+                                    folder=folder, old_ref=old_ref,
+                                    new_ref=new_ref, current_paths=existing_paths,
+                                )
+                                image_paths_str = ",".join(
+                                    renamed + [fp for fp in final_paths if fp not in existing_paths]
+                                )
+                        p.store = self.pf_store.strip()
+                        p.store_contact = self.pf_store_contact.strip()
+                        p.reference = self.pf_reference.strip()
+                        p.description = self.pf_description.strip()
+                        p.measurement = self.pf_measurement.strip()
+                        p.price = to_float(self.pf_price)
+                        p.qty = to_int(self.pf_qty)
+                        p.cbm = to_float(self.pf_cbm)
+                        p.material = self.pf_material.strip()
+                        p.notes = self.pf_notes.strip()
+                        p.image_paths = image_paths_str
+                        p.updated_at = datetime.utcnow()
+                else:
+                    p = Product(
+                        list_id=self.current_list_id,
+                        store=self.pf_store.strip(),
+                        store_contact=self.pf_store_contact.strip(),
+                        reference=self.pf_reference.strip(),
+                        description=self.pf_description.strip(),
+                        measurement=self.pf_measurement.strip(),
+                        price=to_float(self.pf_price),
+                        qty=to_int(self.pf_qty),
+                        cbm=to_float(self.pf_cbm),
+                        material=self.pf_material.strip(),
+                        notes=self.pf_notes.strip(),
+                        image_paths=image_paths_str,
+                    )
+                    session.add(p)
+                lst = session.get(ProductList, self.current_list_id)
+                if lst:
+                    lst.updated_at = datetime.utcnow()
+                session.commit()
+            self.show_product_modal = False
+            self.reload_products()
+        except Exception as e:
+            self.product_error = f"Error saving: {str(e)}"
+        finally:
+            self.is_saving = False
 
-        self.is_saving = False
-        self.show_product_modal = False
-        self.reload_products()
 
     def request_delete(self, product_id: int):
         self.confirm_delete_id = product_id
