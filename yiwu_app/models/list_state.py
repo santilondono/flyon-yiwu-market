@@ -9,7 +9,7 @@ from datetime import datetime
 
 class ListState(AuthState):
     lists: list[dict] = []
-    is_loading_lists: bool = False
+    is_loading_lists: bool = True
     show_list_modal: bool = False
     editing_list_id: int = 0
     list_form_name: str = ""
@@ -17,12 +17,7 @@ class ListState(AuthState):
     list_error: str = ""
     is_loading: bool = False
 
-    def load_lists(self):
-        self._load_user_from_token()
-        if not self.is_authenticated:
-            return rx.redirect("/login")
-        self.is_loading_lists = True
-        yield
+    def _do_load_lists(self):
         with rx.session() as session:
             rows = session.execute(
                 select(ProductList)
@@ -43,7 +38,14 @@ class ListState(AuthState):
                 for r in rows
             ]
         self.is_loading_lists = False
-        self.is_loading_lists = False
+
+    def load_lists(self):
+        self._load_user_from_token()
+        if not self.is_authenticated:
+            return rx.redirect("/login")
+        self.is_loading_lists = True
+        yield
+        self._do_load_lists()
 
     def open_create_modal(self):
         self.editing_list_id = 0
@@ -115,7 +117,9 @@ class ListState(AuthState):
                 ensure_folder(folder)
             session.commit()
         self.show_list_modal = False
-        self.load_lists()
+        self.is_loading_lists = True
+        yield
+        self._do_load_lists()
 
     def delete_list(self, list_id: int):
         with rx.session() as session:
@@ -127,7 +131,9 @@ class ListState(AuthState):
                 )
             )
             session.commit()
-        self.load_lists()
+        self.is_loading_lists = True
+        yield
+        self._do_load_lists()
 
     def go_to_list(self, list_id: int):
         return rx.redirect(f"/list/{list_id}")

@@ -182,7 +182,7 @@ class ProductState(AuthState):
 
     def set_pf_store(self, v): self.pf_store = v
     def set_pf_store_contact(self, v): self.pf_store_contact = v
-    def set_pf_reference(self, v): self.pf_reference = v; self.product_error = ""
+    def set_pf_reference(self, v): self.pf_reference = v.upper() if v else v; self.product_error = ""
     def set_pf_description(self, v): self.pf_description = v
     def set_pf_measurement(self, v): self.pf_measurement = v
     def set_pf_price(self, v): self.pf_price = v
