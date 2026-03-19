@@ -7,24 +7,20 @@ from yiwu_app.models.auth_state import AuthState
 from yiwu_app.utils.excel import export_to_excel
 from yiwu_app.utils.export_zip import export_list_zip
 from yiwu_app.utils.image_client import (
-    get_image_url, upload_image_to_folder, delete_image, ensure_folder, rename_images_for_reference
+    get_image_url, upload_image_to_folder, upload_temp_image,
+    delete_image, ensure_folder, rename_images_for_reference,
+    IMAGE_SERVER_URL
 )
 
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "assets/uploads")
-MAX_PREVIEW_SIZE = (800, 800)   # max preview dimensions
-PREVIEW_QUALITY = 72            # JPEG quality for preview (smaller = faster)
-UPLOAD_QUALITY = 85             # JPEG quality for server upload
 
 
-def compress_image(data: bytes, max_size: tuple, quality: int) -> tuple[bytes, str]:
-    """Compress and resize image. Returns (bytes, content_type)."""
+def compress_image(data: bytes, max_size: tuple, quality: int) -> tuple:
     try:
         from PIL import Image
         img = Image.open(io.BytesIO(data))
-        # Convert RGBA to RGB if needed
         if img.mode in ("RGBA", "P"):
             img = img.convert("RGB")
-        # Resize maintaining aspect ratio
         img.thumbnail(max_size, Image.LANCZOS)
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=quality, optimize=True)
@@ -54,6 +50,8 @@ class ProductState(AuthState):
     pf_cbm: str = ""
     pf_material: str = ""
     pf_notes: str = ""
+
+    # Each item: {"preview_url": "https://...", "filepath": "folder/tmp_xxx.jpg", "is_temp": True}
     pf_images: list[dict] = []
 
     product_error: str = ""
@@ -140,15 +138,24 @@ class ProductState(AuthState):
         self.pf_notes = p["notes"]
         paths = self._parse_image_paths(p["image_paths"])
         urls = p["image_urls"]
+        # Existing images — already on server with final name, not temp
         self.pf_images = [
-            {"preview": url, "b64": "", "content_type": "", "filename": "", "filepath": fp}
+            {"preview_url": url, "filepath": fp, "is_temp": False}
             for url, fp in zip(urls, paths)
         ]
         self.product_error = ""
         self.show_product_modal = True
 
     def close_product_modal(self):
+        """Close modal and delete any temp images that weren't saved."""
+        self._cleanup_temp_images()
         self.show_product_modal = False
+
+    def _cleanup_temp_images(self):
+        """Delete temp images from server if product was not saved."""
+        for img in self.pf_images:
+            if img.get("is_temp") and img.get("filepath"):
+                delete_image(img["filepath"])
 
     def _reset_form(self):
         self.pf_store = ""
@@ -176,34 +183,50 @@ class ProductState(AuthState):
     def set_pf_notes(self, v): self.pf_notes = v
 
     def remove_image(self, index: int):
+        """Remove image from list — delete from server if temp."""
         if 0 <= index < len(self.pf_images):
-            self.pf_images = [img for i, img in enumerate(self.pf_images) if i != index]
+            img = self.pf_images[index]
+            if img.get("is_temp") and img.get("filepath"):
+                delete_image(img["filepath"])
+            self.pf_images = [x for i, x in enumerate(self.pf_images) if i != index]
 
     async def handle_image_upload(self, files: list[rx.UploadFile]):
-        """Read and compress images locally, store as b64. Upload on save only."""
+        """
+        Upload image immediately to server as tmp_xxx.jpg.
+        Preview comes from the server URL — no base64, no latency on preview.
+        """
         if not files:
             return
+        allowed = {"image/jpeg", "image/png", "image/webp"}
+        folder = self.current_list_folder or "default"
+
         self.is_uploading_image = True
         yield
-        allowed = {"image/jpeg", "image/png", "image/webp"}
+
         for file in files:
             data = await file.read()
             if file.content_type not in allowed:
                 self.product_error = f"Skipped {file.filename}: only JPG, PNG, WebP."
                 continue
-            # Compress preview small (fast display)
-            preview_data, _ = compress_image(data, (300, 300), 45)
-            b64_preview = base64.b64encode(preview_data).decode()
-            # Compress upload medium quality
-            upload_data, _ = compress_image(data, (1600, 1600), 82)
-            b64_upload = base64.b64encode(upload_data).decode()
-            self.pf_images = self.pf_images + [{
-                "preview": f"data:image/jpeg;base64,{b64_preview}",
-                "b64": b64_upload,
-                "content_type": "image/jpeg",
-                "filename": file.filename,
-                "filepath": "",
-            }]
+            try:
+                # Compress before uploading
+                compressed, content_type = compress_image(data, (1600, 1600), 82)
+                # Upload as temp file
+                filepath = upload_temp_image(
+                    folder=folder,
+                    file_content=compressed,
+                    content_type=content_type,
+                    original_filename=file.filename,
+                )
+                preview_url = get_image_url(filepath)
+                self.pf_images = self.pf_images + [{
+                    "preview_url": preview_url,
+                    "filepath": filepath,
+                    "is_temp": True,
+                }]
+            except Exception as e:
+                self.product_error = f"Upload error: {str(e)}"
+
         self.is_uploading_image = False
 
     def save_product(self):
@@ -216,29 +239,42 @@ class ProductState(AuthState):
         ref = self.pf_reference.strip() or self.pf_description.strip()[:20]
         folder = self.current_list_folder or "default"
 
-        final_images = []
+        # Rename temp images to final names based on reference
+        final_paths = []
         new_index = 1
         for img in self.pf_images:
-            if img["filepath"]:
-                final_images.append(img["filepath"])
-            else:
+            fp = img.get("filepath", "")
+            if img.get("is_temp") and fp:
+                # Rename tmp_xxx.jpg → REF001.jpg
+                final_paths_so_far = rename_images_for_reference(
+                    folder=folder,
+                    old_ref=fp.split("/")[-1].replace(".jpg", "").replace(".jpeg", "").replace(".png", "").replace(".webp", ""),
+                    new_ref=ref,
+                    current_paths=[fp],
+                )
+                # Use upload_image_to_folder naming logic directly
+                from yiwu_app.utils.image_client import sanitize_folder_name
+                import pathlib
+                ext = pathlib.Path(fp).suffix or ".jpg"
+                safe_ref = "".join(c if c.isalnum() or c in "-_" else "_" for c in ref) or "product"
+                new_filename = f"{safe_ref}{ext}" if new_index == 1 else f"{safe_ref}_{new_index - 1}{ext}"
+                new_filepath = f"{folder}/{new_filename}"
+                from yiwu_app.utils.image_client import httpx as _httpx, IMAGE_SERVER_URL, _headers
                 try:
-                    filepath = upload_image_to_folder(
-                        folder=folder,
-                        reference=ref,
-                        index=new_index,
-                        file_content=base64.b64decode(img["b64"]),
-                        content_type=img["content_type"],
-                        original_filename=img["filename"],
+                    _httpx.post(
+                        f"{IMAGE_SERVER_URL}/rename",
+                        json={"old_path": fp, "new_path": new_filepath},
+                        headers=_headers(),
+                        timeout=10,
                     )
-                    final_images.append(filepath)
-                except Exception as e:
-                    self.product_error = f"Upload error: {str(e)}"
-                    self.is_saving = False
-                    return
+                    final_paths.append(new_filepath)
+                except Exception:
+                    final_paths.append(fp)  # keep original if rename fails
+            else:
+                final_paths.append(fp)
             new_index += 1
 
-        image_paths_str = ",".join(final_images)
+        image_paths_str = ",".join(final_paths)
 
         def to_float(v):
             try: return float(v) if v and v.strip() else None
@@ -255,16 +291,25 @@ class ProductState(AuthState):
                     old_ref = p.reference or ""
                     new_ref = self.pf_reference.strip()
                     if old_ref and new_ref and old_ref != new_ref:
-                        final_images = rename_images_for_reference(
-                            folder=self.current_list_folder or "default",
-                            old_ref=old_ref,
-                            new_ref=new_ref,
-                            current_paths=final_images,
-                        )
-                        image_paths_str = ",".join(final_images)
+                        # Rename existing (non-temp) final images
+                        existing_paths = [
+                            img["filepath"] for img in self.pf_images
+                            if not img.get("is_temp") and img.get("filepath")
+                        ]
+                        if existing_paths:
+                            renamed = rename_images_for_reference(
+                                folder=folder, old_ref=old_ref,
+                                new_ref=new_ref, current_paths=existing_paths,
+                            )
+                            # Rebuild final_paths with renamed existing + new temp-renamed
+                            temp_paths = [
+                                img["filepath"] for img in self.pf_images
+                                if img.get("is_temp")
+                            ]
+                            image_paths_str = ",".join(renamed + [fp for fp in final_paths if fp not in existing_paths])
                     p.store = self.pf_store.strip()
                     p.store_contact = self.pf_store_contact.strip()
-                    p.reference = new_ref
+                    p.reference = self.pf_reference.strip()
                     p.description = self.pf_description.strip()
                     p.measurement = self.pf_measurement.strip()
                     p.price = to_float(self.pf_price)
@@ -325,15 +370,10 @@ class ProductState(AuthState):
             ).scalars().all()
             products = [
                 {
-                    "store": p.store or "",
-                    "store_contact": p.store_contact or "",
-                    "reference": p.reference or "",
-                    "description": p.description or "",
-                    "measurement": p.measurement or "",
-                    "price": p.price,
-                    "qty": p.qty,
-                    "cbm": p.cbm,
-                    "material": p.material or "",
+                    "store": p.store or "", "store_contact": p.store_contact or "",
+                    "reference": p.reference or "", "description": p.description or "",
+                    "measurement": p.measurement or "", "price": p.price,
+                    "qty": p.qty, "cbm": p.cbm, "material": p.material or "",
                     "notes": p.notes or "",
                     "image_paths": self._parse_image_paths(p.image_paths or ""),
                 }
@@ -356,15 +396,10 @@ class ProductState(AuthState):
             ).scalars().all()
             products = [
                 {
-                    "store": p.store or "",
-                    "store_contact": p.store_contact or "",
-                    "reference": p.reference or "",
-                    "description": p.description or "",
-                    "measurement": p.measurement or "",
-                    "price": p.price,
-                    "qty": p.qty,
-                    "cbm": p.cbm,
-                    "material": p.material or "",
+                    "store": p.store or "", "store_contact": p.store_contact or "",
+                    "reference": p.reference or "", "description": p.description or "",
+                    "measurement": p.measurement or "", "price": p.price,
+                    "qty": p.qty, "cbm": p.cbm, "material": p.material or "",
                     "notes": p.notes or "",
                     "image_paths": self._parse_image_paths(p.image_paths or ""),
                 }

@@ -33,7 +33,7 @@ def num_input(placeholder: str, value, on_change, step="0.01") -> rx.Component:
 def image_thumbnail(img: dict, index: int) -> rx.Component:
     return rx.box(
         rx.image(
-            src=img["preview"],
+            src=img["preview_url"],
             width="80px", height="80px",
             object_fit="cover",
             border_radius="8px",

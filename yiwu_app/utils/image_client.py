@@ -146,4 +146,30 @@ def rename_images_for_reference(
             new_paths.append(old_filepath)
 
     return new_paths
+def upload_temp_image(
+    folder: str,
+    file_content: bytes,
+    content_type: str,
+    original_filename: str,
+) -> str:
+    """
+    Upload image immediately with a temporary name: tmp_xxxxxxxx.jpg
+    Returns the full filepath (folder/tmp_xxx.jpg).
+    """
+    import uuid
+    ext = Path(original_filename).suffix.lower() or ".jpg"
+    temp_name = f"tmp_{uuid.uuid4().hex[:12]}{ext}"
+    filepath = f"{folder}/{temp_name}"
+    try:
+        r = httpx.post(
+            f"{IMAGE_SERVER_URL}/upload",
+            files={"file": (temp_name, file_content, content_type)},
+            data={"folder": folder},
+            headers=_headers(),
+            timeout=30,
+        )
+        r.raise_for_status()
+        return filepath
+    except Exception as e:
+        raise Exception(f"Upload failed: {str(e)}")
 
