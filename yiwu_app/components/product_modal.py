@@ -78,11 +78,19 @@ def image_upload_section() -> rx.Component:
             ),
         ),
         rx.upload(
-            rx.vstack(
-                rx.icon("camera", size=24, color=TEXT3),
-                rx.text("Tap to add photos", font_size="13px", color=TEXT3, text_align="center"),
-                rx.text("JPG · PNG · WebP · Multiple allowed", font_size="11px", color=TEXT3),
-                align="center", gap="4px",
+            rx.cond(
+                ProductState.is_uploading_image,
+                rx.vstack(
+                    rx.spinner(size="3", color="blue"),
+                    rx.text("Processing image...", font_size="13px", color=TEXT3),
+                    align="center", gap="8px",
+                ),
+                rx.vstack(
+                    rx.icon("camera", size=24, color=TEXT3),
+                    rx.text("Tap to add photos", font_size="13px", color=TEXT3, text_align="center"),
+                    rx.text("JPG · PNG · WebP · Multiple allowed", font_size="11px", color=TEXT3),
+                    align="center", gap="4px",
+                ),
             ),
             id="product_images",
             accept={"image/png": [".png"], "image/jpeg": [".jpg", ".jpeg"], "image/webp": [".webp"]},

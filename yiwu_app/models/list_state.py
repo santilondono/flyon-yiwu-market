@@ -9,6 +9,7 @@ from datetime import datetime
 
 class ListState(AuthState):
     lists: list[dict] = []
+    is_loading_lists: bool = False
     show_list_modal: bool = False
     editing_list_id: int = 0
     list_form_name: str = ""
@@ -20,6 +21,8 @@ class ListState(AuthState):
         self._load_user_from_token()
         if not self.is_authenticated:
             return rx.redirect("/login")
+        self.is_loading_lists = True
+        yield
         with rx.session() as session:
             rows = session.execute(
                 select(ProductList)
@@ -39,6 +42,8 @@ class ListState(AuthState):
                 }
                 for r in rows
             ]
+        self.is_loading_lists = False
+        self.is_loading_lists = False
 
     def open_create_modal(self):
         self.editing_list_id = 0

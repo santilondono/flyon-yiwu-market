@@ -34,6 +34,7 @@ def compress_image(data: bytes, max_size: tuple, quality: int) -> tuple[bytes, s
 
 
 class ProductState(AuthState):
+    is_loading_products: bool = True
     current_list_id: int = 0
     current_list_name: str = ""
     current_list_desc: str = ""
@@ -57,6 +58,7 @@ class ProductState(AuthState):
 
     product_error: str = ""
     is_saving: bool = False
+    is_uploading_image: bool = False
     confirm_delete_id: int = 0
     is_exporting_excel: bool = False
     is_exporting_zip: bool = False
@@ -70,6 +72,7 @@ class ProductState(AuthState):
             self._load_list_data(int(list_id))
 
     def _load_list_data(self, lid: int):
+        self.is_loading_products = True
         with rx.session() as session:
             lst = session.get(ProductList, lid)
             if not lst or lst.owner_id != self.user_id:
@@ -82,6 +85,7 @@ class ProductState(AuthState):
                 select(Product).where(Product.list_id == lid).order_by(Product.created_at)
             ).scalars().all()
             self.products = [self._to_dict(p) for p in rows]
+        self.is_loading_products = False
 
     def reload_products(self):
         if self.current_list_id:
@@ -179,6 +183,8 @@ class ProductState(AuthState):
         """Read and compress images locally, store as b64. Upload on save only."""
         if not files:
             return
+        self.is_uploading_image = True
+        yield
         allowed = {"image/jpeg", "image/png", "image/webp"}
         for file in files:
             data = await file.read()
@@ -186,7 +192,7 @@ class ProductState(AuthState):
                 self.product_error = f"Skipped {file.filename}: only JPG, PNG, WebP."
                 continue
             # Compress preview small (fast display)
-            preview_data, _ = compress_image(data, (600, 600), 65)
+            preview_data, _ = compress_image(data, (300, 300), 45)
             b64_preview = base64.b64encode(preview_data).decode()
             # Compress upload medium quality
             upload_data, _ = compress_image(data, (1600, 1600), 82)
@@ -198,6 +204,7 @@ class ProductState(AuthState):
                 "filename": file.filename,
                 "filepath": "",
             }]
+        self.is_uploading_image = False
 
     def save_product(self):
         if not self.pf_reference.strip() and not self.pf_description.strip():

@@ -159,26 +159,38 @@ def lists_page() -> rx.Component:
 
             # ── List ───────────────────────────────────────
             rx.cond(
-                ListState.lists.length() > 0,
-                rx.vstack(
-                    rx.foreach(ListState.lists, list_card),
-                    gap="10px", width="100%",
-                ),
+                ListState.is_loading_lists,
                 rx.box(
                     rx.vstack(
-                        rx.icon("package_open", size=44, color=TEXT3),
-                        rx.text("No lists yet", font_size="16px", font_weight="600", color=TEXT2, font_family=FONT),
-                        rx.text("Create your first list to start cataloging.", font_size="13px", color=TEXT3, font_family=FONT, text_align="center"),
-                        rx.button(
-                            rx.hstack(rx.icon("plus", size=15), rx.text("Create first list")),
-                            on_click=ListState.open_create_modal,
-                            **{**btn_primary, "margin_top": "8px"},
-                        ),
-                        align="center", gap="10px",
+                        rx.spinner(size="3", color="blue"),
+                        rx.text("Loading lists...", font_size="14px", color=TEXT3, font_family=FONT),
+                        align="center", gap="12px",
                     ),
                     display="flex", align_items="center", justify_content="center",
-                    padding="60px 24px",
-                    background=BG2, border=f"2px dashed {BORDER}", border_radius="14px", width="100%",
+                    padding="60px 24px", width="100%",
+                ),
+                rx.cond(
+                    ListState.lists.length() > 0,
+                    rx.vstack(
+                        rx.foreach(ListState.lists, list_card),
+                        gap="10px", width="100%",
+                    ),
+                    rx.box(
+                        rx.vstack(
+                            rx.icon("package_open", size=44, color=TEXT3),
+                            rx.text("No lists yet", font_size="16px", font_weight="600", color=TEXT2, font_family=FONT),
+                            rx.text("Create your first list to start cataloging.", font_size="13px", color=TEXT3, font_family=FONT, text_align="center"),
+                            rx.button(
+                                rx.hstack(rx.icon("plus", size=15), rx.text("Create first list")),
+                                on_click=ListState.open_create_modal,
+                                **{**btn_primary, "margin_top": "8px"},
+                            ),
+                            align="center", gap="10px",
+                        ),
+                        display="flex", align_items="center", justify_content="center",
+                        padding="60px 24px",
+                        background=BG2, border=f"2px dashed {BORDER}", border_radius="14px", width="100%",
+                    ),
                 ),
             ),
 

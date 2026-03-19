@@ -389,9 +389,20 @@ def list_detail_page() -> rx.Component:
                 width="100%", align="center", gap="8px",
             ),
             rx.cond(
-                ProductState.products.length() > 0,
-                rx.vstack(rx.foreach(ProductState.products, product_row), gap="10px", width="100%"),
+                ProductState.is_loading_products,
                 rx.box(
+                    rx.vstack(
+                        rx.spinner(size="3", color="blue"),
+                        rx.text("Loading products...", font_size="14px", color=TEXT3, font_family=FONT),
+                        align="center", gap="12px",
+                    ),
+                    display="flex", align_items="center", justify_content="center",
+                    padding="60px 24px", width="100%",
+                ),
+                rx.cond(
+                    ProductState.products.length() > 0,
+                    rx.vstack(rx.foreach(ProductState.products, product_row), gap="10px", width="100%"),
+                    rx.box(
                     rx.vstack(
                         rx.icon("package_plus", size=44, color=TEXT3),
                         rx.text("No products yet", font_size="16px", font_weight="600", color=TEXT2, font_family=FONT),
@@ -406,6 +417,7 @@ def list_detail_page() -> rx.Component:
                     display="flex", align_items="center", justify_content="center",
                     padding="60px 24px",
                     background=BG2, border=f"2px dashed {BORDER}", border_radius="14px", width="100%",
+                    ),
                 ),
             ),
             # FAB
