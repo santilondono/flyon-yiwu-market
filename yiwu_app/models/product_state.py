@@ -176,31 +176,23 @@ class ProductState(AuthState):
             self.pf_images = [img for i, img in enumerate(self.pf_images) if i != index]
 
     async def handle_image_upload(self, files: list[rx.UploadFile]):
-        """
-        Read image, compress for fast preview, store b64 in memory.
-        Upload to server only when save_product() is called.
-        """
+        """Read and compress images locally, store as b64. Upload on save only."""
         if not files:
             return
         allowed = {"image/jpeg", "image/png", "image/webp"}
-
         for file in files:
             data = await file.read()
             if file.content_type not in allowed:
                 self.product_error = f"Skipped {file.filename}: only JPG, PNG, WebP."
                 continue
-
-            # Compress for fast preview (small size, low quality)
-            preview_data, _ = compress_image(data, MAX_PREVIEW_SIZE, PREVIEW_QUALITY)
+            # Compress preview small (fast display)
+            preview_data, _ = compress_image(data, (600, 600), 65)
             b64_preview = base64.b64encode(preview_data).decode()
-            preview_url = f"data:image/jpeg;base64,{b64_preview}"
-
-            # Store original (compressed for upload quality) in b64
-            upload_data, _ = compress_image(data, (2000, 2000), UPLOAD_QUALITY)
+            # Compress upload medium quality
+            upload_data, _ = compress_image(data, (1600, 1600), 82)
             b64_upload = base64.b64encode(upload_data).decode()
-
             self.pf_images = self.pf_images + [{
-                "preview": preview_url,
+                "preview": f"data:image/jpeg;base64,{b64_preview}",
                 "b64": b64_upload,
                 "content_type": "image/jpeg",
                 "filename": file.filename,

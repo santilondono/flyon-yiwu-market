@@ -12,7 +12,7 @@ def txt_input(placeholder: str, value, on_change) -> rx.Component:
         placeholder=placeholder, value=value, on_change=on_change,
         background=BG2, border=f"1px solid {BORDER}", border_radius="10px",
         color=TEXT, font_family=FONT, font_size="15px",
-        padding="12px 14px", height="46px", line_height="1.5", width="100%",
+        padding="12px 14px", height="46px", width="100%",
         _focus=dict(border_color=ACCENT, box_shadow=f"0 0 0 3px {ACCENT_D}", outline="none"),
         _placeholder=dict(color=TEXT3),
     )
@@ -24,7 +24,7 @@ def num_input(placeholder: str, value, on_change, step="0.01") -> rx.Component:
         type="number", step=step,
         background=BG2, border=f"1px solid {BORDER}", border_radius="10px",
         color=TEXT, font_family=FONT, font_size="15px",
-        padding="12px 14px", height="46px", line_height="1.5", width="100%",
+        padding="12px 14px", height="46px", width="100%",
         _focus=dict(border_color=ACCENT, box_shadow=f"0 0 0 3px {ACCENT_D}", outline="none"),
         _placeholder=dict(color=TEXT3),
     )
@@ -169,8 +169,7 @@ def product_modal() -> rx.Component:
 
                 display="flex", flex_direction="column", gap="14px",
                 background=BG2, border=f"1px solid {BORDER}", border_radius="16px",
-                padding="24px",
-                padding_bottom="32px",
+                padding="24px", padding_bottom="32px",
                 width="min(700px, 96vw)",
                 max_height="85vh", overflow_y="auto",
                 position="relative", z_index="201",
@@ -181,6 +180,5 @@ def product_modal() -> rx.Component:
             display="flex", align_items="flex-start", justify_content="center",
             z_index="200", backdrop_filter="blur(4px)",
             padding="16px",
-            padding_top="env(safe-area-inset-top, 16px)",
         ),
     )
