@@ -1,6 +1,6 @@
 import reflex as rx
 from sqlalchemy import select
-import os, base64
+import os, base64, io
 from datetime import datetime
 from yiwu_app.models.models import ProductList, Product
 from yiwu_app.models.auth_state import AuthState
@@ -11,6 +11,26 @@ from yiwu_app.utils.image_client import (
 )
 
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "assets/uploads")
+MAX_PREVIEW_SIZE = (800, 800)   # max preview dimensions
+PREVIEW_QUALITY = 72            # JPEG quality for preview (smaller = faster)
+UPLOAD_QUALITY = 85             # JPEG quality for server upload
+
+
+def compress_image(data: bytes, max_size: tuple, quality: int) -> tuple[bytes, str]:
+    """Compress and resize image. Returns (bytes, content_type)."""
+    try:
+        from PIL import Image
+        img = Image.open(io.BytesIO(data))
+        # Convert RGBA to RGB if needed
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+        # Resize maintaining aspect ratio
+        img.thumbnail(max_size, Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=quality, optimize=True)
+        return buf.getvalue(), "image/jpeg"
+    except Exception:
+        return data, "image/jpeg"
 
 
 class ProductState(AuthState):
@@ -23,7 +43,6 @@ class ProductState(AuthState):
     show_product_modal: bool = False
     editing_product_id: int = 0
 
-    # Form fields
     pf_store: str = ""
     pf_store_contact: str = ""
     pf_reference: str = ""
@@ -34,10 +53,6 @@ class ProductState(AuthState):
     pf_cbm: str = ""
     pf_material: str = ""
     pf_notes: str = ""
-
-    # Images pending upload:
-    # Each item: {"preview": "data:image/...", "b64": "...", "content_type": "image/jpeg", "filename": "orig.jpg", "filepath": ""}
-    # filepath is empty until save_product uploads it to the server
     pf_images: list[dict] = []
 
     product_error: str = ""
@@ -99,7 +114,6 @@ class ProductState(AuthState):
             "created_at": p.created_at.strftime("%d/%m/%Y %H:%M") if p.created_at else "",
         }
 
-    # ── Modal helpers ──────────────────────────────────────
     def open_create_product(self):
         self._reset_form()
         self.editing_product_id = 0
@@ -120,7 +134,6 @@ class ProductState(AuthState):
         self.pf_cbm = p["cbm"]
         self.pf_material = p["material"]
         self.pf_notes = p["notes"]
-        # Existing server images: no b64 needed, filepath already set
         paths = self._parse_image_paths(p["image_paths"])
         urls = p["image_urls"]
         self.pf_images = [
@@ -164,8 +177,8 @@ class ProductState(AuthState):
 
     async def handle_image_upload(self, files: list[rx.UploadFile]):
         """
-        Store images in memory (base64) only — do NOT upload to server yet.
-        Upload happens at save_product() once we have the reference.
+        Read image, compress for fast preview, store b64 in memory.
+        Upload to server only when save_product() is called.
         """
         if not files:
             return
@@ -176,14 +189,22 @@ class ProductState(AuthState):
             if file.content_type not in allowed:
                 self.product_error = f"Skipped {file.filename}: only JPG, PNG, WebP."
                 continue
-            b64 = base64.b64encode(data).decode()
-            preview = f"data:{file.content_type};base64,{b64}"
+
+            # Compress for fast preview (small size, low quality)
+            preview_data, _ = compress_image(data, MAX_PREVIEW_SIZE, PREVIEW_QUALITY)
+            b64_preview = base64.b64encode(preview_data).decode()
+            preview_url = f"data:image/jpeg;base64,{b64_preview}"
+
+            # Store original (compressed for upload quality) in b64
+            upload_data, _ = compress_image(data, (2000, 2000), UPLOAD_QUALITY)
+            b64_upload = base64.b64encode(upload_data).decode()
+
             self.pf_images = self.pf_images + [{
-                "preview": preview,
-                "b64": b64,
-                "content_type": file.content_type,
+                "preview": preview_url,
+                "b64": b64_upload,
+                "content_type": "image/jpeg",
                 "filename": file.filename,
-                "filepath": "",   # empty = not yet uploaded
+                "filepath": "",
             }]
 
     def save_product(self):
@@ -196,15 +217,12 @@ class ProductState(AuthState):
         ref = self.pf_reference.strip() or self.pf_description.strip()[:20]
         folder = self.current_list_folder or "default"
 
-        # Upload pending images (those with b64 but no filepath yet)
         final_images = []
         new_index = 1
         for img in self.pf_images:
             if img["filepath"]:
-                # Already on server (editing existing product)
                 final_images.append(img["filepath"])
             else:
-                # New image — upload now with correct reference name
                 try:
                     filepath = upload_image_to_folder(
                         folder=folder,
@@ -237,7 +255,6 @@ class ProductState(AuthState):
                 if p and p.list_id == self.current_list_id:
                     old_ref = p.reference or ""
                     new_ref = self.pf_reference.strip()
-                    # Rename server files if reference changed
                     if old_ref and new_ref and old_ref != new_ref:
                         final_images = rename_images_for_reference(
                             folder=self.current_list_folder or "default",
@@ -330,8 +347,8 @@ class ProductState(AuthState):
         yield rx.call_script(
             f"const a=document.createElement('a');a.href='data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}';a.download='{filename}';document.body.appendChild(a);a.click();document.body.removeChild(a);"
         )
+
     def export_zip(self):
-        """Export list as ZIP (Excel + images folder) and trigger download."""
         self.is_exporting_zip = True
         yield
         with rx.session() as session:

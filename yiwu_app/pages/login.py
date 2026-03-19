@@ -6,7 +6,7 @@ from yiwu_app.styles.theme import *
 def login_page() -> rx.Component:
     return rx.box(
         rx.box(
-            # ── Logo ───────────────────────────────────────
+            # Logo
             rx.vstack(
                 rx.box(
                     rx.text("F", color="white", font_weight="800", font_size="28px"),
@@ -22,14 +22,18 @@ def login_page() -> rx.Component:
                 align="center", gap="8px", margin_bottom="28px",
             ),
 
-            # ── Form ───────────────────────────────────────
+            # Form
             rx.vstack(
                 rx.vstack(
                     rx.text("Username", **label_style),
                     rx.input(
                         placeholder="Enter your username",
-                        value=AuthState.form_email,
+                        default_value=AuthState.form_email,
                         on_change=AuthState.set_email,
+                        auto_complete="username",
+                        auto_correct="off",
+                        auto_capitalize="off",
+                        spell_check=False,
                         **input_style,
                     ),
                     align="start", width="100%", gap="4px",
@@ -38,22 +42,21 @@ def login_page() -> rx.Component:
                     rx.text("Password", **label_style),
                     rx.input(
                         placeholder="••••••••",
-                        value=AuthState.form_password,
+                        default_value=AuthState.form_password,
                         on_change=AuthState.set_password,
                         type="password",
+                        auto_complete="current-password",
                         **input_style,
                     ),
                     align="start", width="100%", gap="4px",
                 ),
 
-                # Error message
                 rx.cond(
                     AuthState.error != "",
                     rx.box(
                         rx.hstack(
                             rx.icon("circle_alert", size=14, color=DANGER),
-                            rx.text(AuthState.error,
-                                    color=DANGER, font_size="13px", font_family=FONT),
+                            rx.text(AuthState.error, color=DANGER, font_size="13px", font_family=FONT),
                             align="center", gap="6px",
                         ),
                         background=DANGER_D,
@@ -62,7 +65,6 @@ def login_page() -> rx.Component:
                     ),
                 ),
 
-                # Submit button
                 rx.button(
                     rx.cond(
                         AuthState.is_loading,
@@ -76,7 +78,7 @@ def login_page() -> rx.Component:
                     color="white",
                     border="none",
                     border_radius="10px",
-                    padding="12px",
+                    padding="13px",
                     font_family=FONT,
                     font_size="15px",
                     font_weight="500",
