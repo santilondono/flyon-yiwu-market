@@ -1,6 +1,9 @@
+.states
+assets/external/
+.web
 # ── Secrets ───────────────────────────────────────────────
 .env
- 
+
 # ── Python ────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
@@ -9,23 +12,23 @@ venv/
 env/
 .venv/
 *.egg-info/
- 
+
 # ── Reflex ────────────────────────────────────────────────
 .web/
 .reflex/
- 
+
 # ── Base de datos local ───────────────────────────────────
 *.db
 *.sqlite3
- 
+
 # ── Imágenes subidas localmente (van al servidor externo) ─
 assets/uploads/*
 !assets/uploads/.gitkeep
- 
+
 # ── OS ────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
- 
+
 # ── IDE ───────────────────────────────────────────────────
 .vscode/
 .idea/

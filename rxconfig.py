@@ -9,4 +9,7 @@ config = rx.Config(
     db_url=os.getenv("DATABASE_URL", "sqlite:///yiwu_dev.db"),
     tailwind=None,
     plugins=[rx.plugins.SitemapPlugin()],
+    title="Flyon Yiwu Market",
+    frontend_port=3000,
+    backend_port=8000,
 )
