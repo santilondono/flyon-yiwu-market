@@ -45,7 +45,13 @@ class ProductState(AuthState):
     pf_store_contact: str = ""
     pf_reference: str = ""
     pf_description: str = ""
-    pf_measurement: str = ""
+    # Measurement: 3 dimensions with units
+    pf_m1: str = ""
+    pf_u1: str = "cm"
+    pf_m2: str = ""
+    pf_u2: str = "cm"
+    pf_m3: str = ""
+    pf_u3: str = "cm"
     pf_price: str = ""
     pf_qty: str = ""
     pf_cbm: str = ""
@@ -138,7 +144,10 @@ class ProductState(AuthState):
         self.pf_store_contact = p["store_contact"]
         self.pf_reference = p["reference"]
         self.pf_description = p["description"]
-        self.pf_measurement = p["measurement"]
+        dims = self._parse_measurement(p["measurement"])
+        self.pf_m1, self.pf_u1 = dims[0]
+        self.pf_m2, self.pf_u2 = dims[1]
+        self.pf_m3, self.pf_u3 = dims[2]
         self.pf_price = p["price"]
         self.pf_qty = p["qty"]
         self.pf_cbm = p["cbm"]
@@ -169,27 +178,85 @@ class ProductState(AuthState):
         self.pf_store_contact = ""
         self.pf_reference = ""
         self.pf_description = ""
-        self.pf_measurement = ""
         self.pf_price = ""
         self.pf_qty = ""
         self.pf_cbm = ""
         self.pf_material = ""
         self.pf_notes = ""
+        self.pf_m1 = ""; self.pf_u1 = "cm"
+        self.pf_m2 = ""; self.pf_u2 = "cm"
+        self.pf_m3 = ""; self.pf_u3 = "cm"
         self.pf_image_urls = []
         self.pf_image_paths = []
         self.pf_image_temps = []
         self.product_error = ""
 
-    def set_pf_store(self, v): self.pf_store = v
-    def set_pf_store_contact(self, v): self.pf_store_contact = v
+    def set_pf_store(self, v): self.pf_store = v.upper() if v else v
+    def set_pf_store_contact(self, v): self.pf_store_contact = v.upper() if v else v
     def set_pf_reference(self, v): self.pf_reference = v.upper() if v else v; self.product_error = ""
-    def set_pf_description(self, v): self.pf_description = v
-    def set_pf_measurement(self, v): self.pf_measurement = v
+    def set_pf_description(self, v): self.pf_description = v.upper() if v else v
     def set_pf_price(self, v): self.pf_price = v
     def set_pf_qty(self, v): self.pf_qty = v
     def set_pf_cbm(self, v): self.pf_cbm = v
-    def set_pf_material(self, v): self.pf_material = v
-    def set_pf_notes(self, v): self.pf_notes = v
+    def set_pf_material(self, v): self.pf_material = v.upper() if v else v
+    def set_pf_notes(self, v): self.pf_notes = v.upper() if v else v
+    def set_pf_m1(self, v): self.pf_m1 = v
+    def set_pf_u1(self, v): self.pf_u1 = v
+    def set_pf_m2(self, v): self.pf_m2 = v
+    def set_pf_u2(self, v): self.pf_u2 = v
+    def set_pf_m3(self, v): self.pf_m3 = v
+    def set_pf_u3(self, v): self.pf_u3 = v
+
+    def _measurement_to_str(self) -> str:
+        """Build measurement string: e.g. '3m*15mm' or '10cm*5cm' """
+        parts = []
+        for val, unit in [(self.pf_m1, self.pf_u1), (self.pf_m2, self.pf_u2), (self.pf_m3, self.pf_u3)]:
+            if val and str(val).strip():
+                parts.append(f"{val.strip()}{unit}")
+        return "*".join(parts)
+
+    def _parse_measurement(self, m: str):
+        """Parse '3m*15mm*2cm' back into 3 value+unit pairs."""
+        units = ["mm", "cm", "inches", "ft", "m"]
+        parts = m.split("*") if m else []
+        result = []
+        for part in parts[:3]:
+            part = part.strip()
+            matched_unit = "cm"
+            matched_val = part
+            for u in sorted(units, key=len, reverse=True):
+                if part.lower().endswith(u):
+                    matched_unit = u
+                    matched_val = part[:-len(u)]
+                    break
+            result.append((matched_val, matched_unit))
+        while len(result) < 3:
+            result.append(("", "cm"))
+        return result
+
+    def duplicate_product(self, product_id: int):
+        """Open create modal pre-filled with product data (minus reference)."""
+        p = next((x for x in self.products if x["id"] == product_id), None)
+        if not p:
+            return
+        self._reset_form()
+        self.editing_product_id = 0
+        self.pf_store = p["store"]
+        self.pf_store_contact = p["store_contact"]
+        self.pf_reference = ""  # intentionally empty
+        self.pf_description = p["description"]
+        self.pf_price = p["price"]
+        self.pf_qty = p["qty"]
+        self.pf_cbm = p["cbm"]
+        self.pf_material = p["material"]
+        self.pf_notes = p["notes"]
+        # Parse measurement
+        dims = self._parse_measurement(p["measurement"])
+        self.pf_m1, self.pf_u1 = dims[0]
+        self.pf_m2, self.pf_u2 = dims[1]
+        self.pf_m3, self.pf_u3 = dims[2]
+        self.is_saving = False
+        self.show_product_modal = True
 
     def remove_image(self, index: int):
         """Remove image from list — delete from server if temp."""
@@ -267,6 +334,22 @@ class ProductState(AuthState):
         from yiwu_app.utils.image_client import httpx as _httpx, IMAGE_SERVER_URL, _headers
 
         ref = self.pf_reference.strip() or self.pf_description.strip()[:20]
+
+        # Validate unique reference within this list
+        if self.pf_reference.strip():
+            with rx.session() as _s:
+                from sqlalchemy import select as _sel
+                existing = _s.execute(
+                    _sel(Product).where(
+                        Product.list_id == self.current_list_id,
+                        Product.reference == self.pf_reference.strip(),
+                        Product.id != self.editing_product_id,
+                    )
+                ).scalar_one_or_none()
+                if existing:
+                    self.product_error = f"Reference {self.pf_reference.strip()} already exists in this list."
+                    self.is_saving = False
+                    return
         folder = self.current_list_folder or "default"
         safe_ref = "".join(c if c.isalnum() or c in "-_" else "_" for c in ref) or "product"
 
@@ -316,8 +399,8 @@ class ProductState(AuthState):
                         new_ref = self.pf_reference.strip()
                         if old_ref and new_ref and old_ref != new_ref:
                             existing_paths = [
-                                str(img["filepath"]) for img in self.pf_images
-                                if not img["is_temp"] and img["filepath"]
+                                fp for fp, is_temp in zip(self.pf_image_paths, self.pf_image_temps)
+                                if not is_temp and fp
                             ]
                             if existing_paths:
                                 renamed = rename_images_for_reference(
@@ -331,7 +414,7 @@ class ProductState(AuthState):
                         p.store_contact = self.pf_store_contact.strip()
                         p.reference = self.pf_reference.strip()
                         p.description = self.pf_description.strip()
-                        p.measurement = self.pf_measurement.strip()
+                        p.measurement = self._measurement_to_str()
                         p.price = to_float(self.pf_price)
                         p.qty = to_int(self.pf_qty)
                         p.cbm = to_float(self.pf_cbm)
@@ -346,7 +429,7 @@ class ProductState(AuthState):
                         store_contact=self.pf_store_contact.strip(),
                         reference=self.pf_reference.strip(),
                         description=self.pf_description.strip(),
-                        measurement=self.pf_measurement.strip(),
+                        measurement=self._measurement_to_str(),
                         price=to_float(self.pf_price),
                         qty=to_int(self.pf_qty),
                         cbm=to_float(self.pf_cbm),

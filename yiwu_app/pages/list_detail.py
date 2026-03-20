@@ -122,6 +122,13 @@ def product_row(p: dict) -> rx.Component:
                 # Actions
                 rx.hstack(
                     rx.button(
+                        rx.icon("copy", size=14),
+                        on_click=ProductState.duplicate_product(p["id"]),
+                        background="transparent", color=TEXT3, border=f"1px solid {BORDER}",
+                        border_radius="8px", padding="6px 10px", cursor="pointer",
+                        _hover=dict(color=SUCCESS, border_color=SUCCESS), transition="all 0.15s",
+                    ),
+                    rx.button(
                         rx.icon("pencil", size=14),
                         on_click=ProductState.open_edit_product(p["id"]),
                         background="transparent", color=TEXT3, border=f"1px solid {BORDER}",

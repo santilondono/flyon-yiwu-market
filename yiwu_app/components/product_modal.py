@@ -6,14 +6,20 @@ import os
 IMAGE_SERVER_URL = os.getenv("IMAGE_SERVER_URL", "https://images.flyon-yiwu-market.com")
 IMAGE_SERVER_API_KEY = os.getenv("IMAGE_SERVER_API_KEY", "")
 
+UNITS = ["mm", "cm", "m", "inches", "ft"]
+
 
 def field(label: str, component) -> rx.Component:
     return rx.vstack(rx.text(label, **label_style), component, align="start", width="100%", gap="4px")
 
 
-def txt_input(placeholder: str, value, on_change) -> rx.Component:
+def txt_input(placeholder: str, value, on_change, input_mode: str = "text") -> rx.Component:
+    """Text input — use default_value + on_blur to avoid flickering on slow connections."""
     return rx.input(
-        placeholder=placeholder, value=value, on_change=on_change,
+        placeholder=placeholder,
+        default_value=value,
+        on_blur=on_change,
+        input_mode=input_mode,
         background=BG2, border=f"1px solid {BORDER}", border_radius="10px",
         color=TEXT, font_family=FONT, font_size="15px",
         padding="12px 14px", height="46px", width="100%",
@@ -24,8 +30,11 @@ def txt_input(placeholder: str, value, on_change) -> rx.Component:
 
 def num_input(placeholder: str, value, on_change, step="0.01") -> rx.Component:
     return rx.input(
-        placeholder=placeholder, value=value, on_change=on_change,
+        placeholder=placeholder,
+        default_value=value,
+        on_blur=on_change,
         type="number", step=step,
+        input_mode="decimal",
         background=BG2, border=f"1px solid {BORDER}", border_radius="10px",
         color=TEXT, font_family=FONT, font_size="15px",
         padding="12px 14px", height="46px", width="100%",
@@ -34,8 +43,76 @@ def num_input(placeholder: str, value, on_change, step="0.01") -> rx.Component:
     )
 
 
+def unit_select(value, on_change) -> rx.Component:
+    return rx.select(
+        UNITS,
+        value=value,
+        on_change=on_change,
+        background=BG2, border=f"1px solid {BORDER}", border_radius="10px",
+        color=TEXT, font_family=FONT, font_size="14px",
+        height="46px", cursor="pointer",
+        _focus=dict(border_color=ACCENT, outline="none"),
+    )
+
+
+def measurement_section() -> rx.Component:
+    return rx.vstack(
+        rx.text("Measurement", **label_style),
+        rx.hstack(
+            rx.input(
+                placeholder="Value",
+                default_value=ProductState.pf_m1,
+                on_blur=ProductState.set_pf_m1,
+                type="number", step="any", input_mode="decimal",
+                background=BG2, border=f"1px solid {BORDER}", border_radius="10px",
+                color=TEXT, font_family=FONT, font_size="15px",
+                padding="12px 10px", height="46px", width="90px",
+                _focus=dict(border_color=ACCENT, box_shadow=f"0 0 0 3px {ACCENT_D}", outline="none"),
+                _placeholder=dict(color=TEXT3),
+            ),
+            unit_select(ProductState.pf_u1, ProductState.set_pf_u1),
+            rx.text("×", color=TEXT3, font_size="18px", padding_x="4px"),
+            rx.input(
+                placeholder="Value",
+                default_value=ProductState.pf_m2,
+                on_blur=ProductState.set_pf_m2,
+                type="number", step="any", input_mode="decimal",
+                background=BG2, border=f"1px solid {BORDER}", border_radius="10px",
+                color=TEXT, font_family=FONT, font_size="15px",
+                padding="12px 10px", height="46px", width="90px",
+                _focus=dict(border_color=ACCENT, box_shadow=f"0 0 0 3px {ACCENT_D}", outline="none"),
+                _placeholder=dict(color=TEXT3),
+            ),
+            unit_select(ProductState.pf_u2, ProductState.set_pf_u2),
+            rx.text("×", color=TEXT3, font_size="18px", padding_x="4px"),
+            rx.input(
+                placeholder="Value",
+                default_value=ProductState.pf_m3,
+                on_blur=ProductState.set_pf_m3,
+                type="number", step="any", input_mode="decimal",
+                background=BG2, border=f"1px solid {BORDER}", border_radius="10px",
+                color=TEXT, font_family=FONT, font_size="15px",
+                padding="12px 10px", height="46px", width="90px",
+                _focus=dict(border_color=ACCENT, box_shadow=f"0 0 0 3px {ACCENT_D}", outline="none"),
+                _placeholder=dict(color=TEXT3),
+            ),
+            unit_select(ProductState.pf_u3, ProductState.set_pf_u3),
+            align="center", gap="4px", flex_wrap="wrap", width="100%",
+        ),
+        rx.text(
+            "Preview: ",
+            rx.cond(ProductState.pf_m1 != "", ProductState.pf_m1 + ProductState.pf_u1, ""),
+            rx.cond((ProductState.pf_m1 != "") & (ProductState.pf_m2 != ""), " × ", ""),
+            rx.cond(ProductState.pf_m2 != "", ProductState.pf_m2 + ProductState.pf_u2, ""),
+            rx.cond((ProductState.pf_m2 != "") & (ProductState.pf_m3 != ""), " × ", ""),
+            rx.cond(ProductState.pf_m3 != "", ProductState.pf_m3 + ProductState.pf_u3, ""),
+            font_size="12px", color=TEXT3, font_family=FONT,
+        ),
+        align="start", width="100%", gap="4px",
+    )
+
+
 def image_url_thumbnail(url: str, index: int) -> rx.Component:
-    """Thumbnail that takes a plain string URL — no dict field access."""
     return rx.box(
         rx.image(
             src=url,
@@ -59,7 +136,6 @@ def image_url_thumbnail(url: str, index: int) -> rx.Component:
 
 
 def upload_script() -> rx.Component:
-    """Global upload script — injected at page level, always available."""
     SERVER = IMAGE_SERVER_URL
     API_KEY = IMAGE_SERVER_API_KEY
     return rx.script(f"""
@@ -74,7 +150,7 @@ window.__uploadInit = function() {{
         if (spinner) spinner.style.display = 'flex';
         const folderEl = document.getElementById('_folder_data');
         const folder = folderEl ? (folderEl.getAttribute('data-folder') || 'default') : 'default';
-        console.log('Uploading to folder:', folder, 'files:', files.length);
+        console.log('Uploading to folder:', folder);
         for (const file of files) {{
             try {{
                 const blob = await new Promise(resolve => {{
@@ -101,24 +177,19 @@ window.__uploadInit = function() {{
                 const fd = new FormData();
                 fd.append('file', new File([blob], tmpName, {{type:'image/jpeg'}}));
                 fd.append('folder', folder);
-                console.log('Fetching:', '{SERVER}/upload', 'folder:', folder);
                 const r = await fetch('{SERVER}/upload', {{
                     method: 'POST',
                     headers: {{'x-api-key': '{API_KEY}'}},
                     body: fd
                 }});
-                console.log('Upload response:', r.status);
                 if (r.ok) {{
                     const data = await r.json();
-                    console.log('Upload data:', data);
                     const fp = data.filepath || (folder + '/' + tmpName);
                     const pu = '{SERVER}/images/' + fp;
-                    // Send fp|||pu via controlled input on_change
                     const bridge = document.getElementById('_img_bridge');
-                    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-                    nativeInputValueSetter.call(bridge, fp + '|||' + pu);
+                    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                    setter.call(bridge, fp + '|||' + pu);
                     bridge.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                    console.log('Notified Reflex:', fp, pu);
                 }}
             }} catch(e) {{ console.error('Upload error:', e); }}
         }}
@@ -143,7 +214,6 @@ def direct_upload_section() -> rx.Component:
             ),
             align="center", gap="8px", width="100%",
         ),
-
         rx.cond(
             ProductState.pf_image_urls.length() > 0,
             rx.flex(
@@ -151,32 +221,15 @@ def direct_upload_section() -> rx.Component:
                 wrap="wrap", gap="10px", width="100%",
             ),
         ),
-
-        # Hidden file input
-        rx.el.input(
-            id="direct-file-input",
-            type="file",
-            accept="image/jpeg,image/png,image/webp",
-            multiple=True,
-            style={"display": "none"},
-        ),
-
-        # JS→Reflex bridge: JS sets value and triggers native input event
-        rx.el.input(
-            id="_img_bridge",
-            type="text",
-            on_change=ProductState.receive_uploaded_image,
-            style={"display": "none", "position": "absolute", "opacity": "0"},
-        ),
-
-        # Folder data carrier
-        rx.box(
-            id="_folder_data",
-            custom_attrs={"data-folder": ProductState.current_list_folder},
-            display="none",
-        ),
-
-        # Upload tap area
+        rx.el.input(id="direct-file-input", type="file",
+                    accept="image/jpeg,image/png,image/webp", multiple=True,
+                    style={"display": "none"}),
+        rx.el.input(id="_img_bridge", type="text",
+                    on_change=ProductState.receive_uploaded_image,
+                    style={"display": "none", "position": "absolute", "opacity": "0"}),
+        rx.box(id="_folder_data",
+               custom_attrs={"data-folder": ProductState.current_list_folder},
+               display="none"),
         rx.box(
             rx.box(
                 rx.vstack(
@@ -194,36 +247,29 @@ def direct_upload_section() -> rx.Component:
                 background=BG3, _hover=dict(border_color=ACCENT), transition="border-color 0.15s",
             ),
             rx.box(
-                rx.vstack(
-                    rx.spinner(size="3", color="blue"),
-                    rx.text("Uploading...", font_size="13px", color=TEXT2, font_family=FONT),
-                    align="center", gap="8px",
-                ),
+                rx.vstack(rx.spinner(size="3", color="blue"),
+                          rx.text("Uploading...", font_size="13px", color=TEXT2, font_family=FONT),
+                          align="center", gap="8px"),
                 id="upload-spinner",
                 position="absolute", top="0", left="0",
                 width="100%", height="100%",
-                background="rgba(232,238,245,0.93)",
-                border_radius="10px",
-                display="none",
-                align_items="center",
-                justify_content="center",
-                z_index="10",
+                background="rgba(232,238,245,0.93)", border_radius="10px",
+                display="none", align_items="center", justify_content="center", z_index="10",
             ),
             position="relative", width="100%",
         ),
-
         align="start", width="100%", gap="8px",
     )
 
 
 def product_modal() -> rx.Component:
     return rx.fragment(
-        # Script always in DOM, not inside cond
         upload_script(),
         rx.cond(
             ProductState.show_product_modal,
             rx.box(
                 rx.box(
+                    # Header
                     rx.hstack(
                         rx.text(
                             rx.cond(ProductState.editing_product_id > 0, "Edit product", "New product"),
@@ -242,27 +288,30 @@ def product_modal() -> rx.Component:
                     direct_upload_section(),
 
                     rx.grid(
-                        field("Store", txt_input("e.g. Fashion World A-12", ProductState.pf_store, ProductState.set_pf_store)),
-                        field("Store contact", txt_input("e.g. WeChat: john88", ProductState.pf_store_contact, ProductState.set_pf_store_contact)),
+                        field("Store", txt_input("e.g. FASHION WORLD A-12", ProductState.pf_store, ProductState.set_pf_store)),
+                        field("Store contact", txt_input("e.g. WECHAT: JOHN88", ProductState.pf_store_contact, ProductState.set_pf_store_contact)),
                         columns="2", gap="12px", width="100%",
                     ),
                     rx.grid(
                         field("Reference *", txt_input("e.g. FW-2025-001", ProductState.pf_reference, ProductState.set_pf_reference)),
-                        field("Description", txt_input("Product name / model", ProductState.pf_description, ProductState.set_pf_description)),
+                        field("Description", txt_input("PRODUCT NAME / MODEL", ProductState.pf_description, ProductState.set_pf_description)),
                         columns="2", gap="12px", width="100%",
                     ),
-                    field("Measurement", txt_input("e.g. 30×20×15 cm", ProductState.pf_measurement, ProductState.set_pf_measurement)),
+
+                    measurement_section(),
+
                     rx.grid(
                         field("Price (¥)", num_input("0.00", ProductState.pf_price, ProductState.set_pf_price)),
                         field("QTY", num_input("0", ProductState.pf_qty, ProductState.set_pf_qty, step="1")),
                         field("CBM (m³)", num_input("0.00", ProductState.pf_cbm, ProductState.set_pf_cbm)),
                         columns="3", gap="12px", width="100%",
                     ),
-                    field("Material", txt_input("e.g. Stainless steel", ProductState.pf_material, ProductState.set_pf_material)),
+                    field("Material", txt_input("e.g. STAINLESS STEEL", ProductState.pf_material, ProductState.set_pf_material)),
                     field("Notes",
                         rx.text_area(
-                            placeholder="MOQ, packaging, lead time...",
-                            value=ProductState.pf_notes, on_change=ProductState.set_pf_notes,
+                            placeholder="MOQ, PACKAGING, LEAD TIME...",
+                            default_value=ProductState.pf_notes,
+                            on_blur=ProductState.set_pf_notes,
                             rows="2",
                             background=BG2, border=f"1px solid {BORDER}", border_radius="10px",
                             color=TEXT, font_family=FONT, font_size="15px", padding="10px 14px", width="100%",
