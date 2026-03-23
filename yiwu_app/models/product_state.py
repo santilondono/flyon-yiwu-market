@@ -10,7 +10,7 @@ from yiwu_app.utils.export_zip import export_list_zip
 from yiwu_app.utils.image_client import (
     get_image_url, upload_image_to_folder, upload_temp_image,
     delete_image, ensure_folder, rename_images_for_reference,
-    IMAGE_SERVER_URL
+    upload_export, IMAGE_SERVER_URL
 )
 
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "assets/uploads")
@@ -56,6 +56,7 @@ class ProductState(AuthState):
     pf_qty: str = ""
     pf_cbm: str = ""
     pf_material: str = ""
+    pf_material_selected: list[str] = []
     pf_notes: str = ""
 
     # Each item: {"preview_url": "https://...", "filepath": "folder/tmp_xxx.jpg", "is_temp": True}
@@ -68,8 +69,22 @@ class ProductState(AuthState):
     is_saving: bool = False
     is_uploading_image: bool = False
     confirm_delete_id: int = 0
+    # Pagination
+    page: int = 0
+    page_size: int = 50
+
+    # Export mode
+    show_export_view: bool = False
+    export_cancelled: bool = False
+
+    # Selection for export
+    selected_ids: list[str] = []
+    select_all: bool = False
+
     is_exporting_excel: bool = False
     is_exporting_zip: bool = False
+    export_progress: int = 0       # 0-100
+    export_current: str = ""       # current item label
 
     def on_load(self):
         self._load_user_from_token()
@@ -97,6 +112,10 @@ class ProductState(AuthState):
             ).scalars().all()
             self.products = [self._to_dict(p) for p in rows]
         self.is_loading_products = False
+        self.page = 0
+        self.selected_ids = []
+        self.select_all = False
+        self._refresh_page()
 
     def reload_products(self):
         if self.current_list_id:
@@ -152,6 +171,8 @@ class ProductState(AuthState):
         self.pf_qty = p["qty"]
         self.pf_cbm = p["cbm"]
         self.pf_material = p["material"]
+        self.pf_material_selected = [m.strip() for m in p["material"].split(",") if m.strip()]
+        self.pf_material_selected = [m.strip() for m in p["material"].split(",") if m.strip()]
         self.pf_notes = p["notes"]
         paths = self._parse_image_paths(p["image_paths"])
         urls = p["image_urls"]
@@ -182,6 +203,7 @@ class ProductState(AuthState):
         self.pf_qty = ""
         self.pf_cbm = ""
         self.pf_material = ""
+        self.pf_material_selected = []
         self.pf_notes = ""
         self.pf_m1 = ""; self.pf_u1 = "cm"
         self.pf_m2 = ""; self.pf_u2 = "cm"
@@ -199,6 +221,13 @@ class ProductState(AuthState):
     def set_pf_qty(self, v): self.pf_qty = v
     def set_pf_cbm(self, v): self.pf_cbm = v
     def set_pf_material(self, v): self.pf_material = v.upper() if v else v
+    def toggle_material(self, mat: str):
+        if mat in self.pf_material_selected:
+            self.pf_material_selected = [m for m in self.pf_material_selected if m != mat]
+        else:
+            self.pf_material_selected = [*self.pf_material_selected, mat]
+        # Sync to pf_material string
+        self.pf_material = ", ".join(self.pf_material_selected)
     def set_pf_notes(self, v): self.pf_notes = v.upper() if v else v
     def set_pf_m1(self, v): self.pf_m1 = v
     def set_pf_u1(self, v): self.pf_u1 = v
@@ -217,7 +246,7 @@ class ProductState(AuthState):
 
     def _parse_measurement(self, m: str):
         """Parse '3m*15mm*2cm' back into 3 value+unit pairs."""
-        units = ["mm", "cm", "inches", "ft", "m"]
+        units = ["mm", "cm", "inch", "ft", "m"]
         parts = m.split("*") if m else []
         result = []
         for part in parts[:3]:
@@ -249,6 +278,7 @@ class ProductState(AuthState):
         self.pf_qty = p["qty"]
         self.pf_cbm = p["cbm"]
         self.pf_material = p["material"]
+        self.pf_material_selected = [m.strip() for m in p["material"].split(",") if m.strip()]
         self.pf_notes = p["notes"]
         # Parse measurement
         dims = self._parse_measurement(p["measurement"])
@@ -257,6 +287,76 @@ class ProductState(AuthState):
         self.pf_m3, self.pf_u3 = dims[2]
         self.is_saving = False
         self.show_product_modal = True
+
+    # ── Pagination ────────────────────────────────────────
+    def next_page(self):
+        if (self.page + 1) * self.page_size < len(self.products):
+            self.page += 1
+            self._refresh_page()
+
+    def prev_page(self):
+        if self.page > 0:
+            self.page -= 1
+            self._refresh_page()
+
+    def go_to_page(self, p: int):
+        self.page = p
+        self._refresh_page()
+
+    # paged_products is a plain state var updated by _refresh_page()
+    paged_products: list[dict] = []
+    total_pages: int = 1
+    page_start: int = 1
+    page_end: int = 0
+
+    @rx.var
+    def selected_ids_csv(self) -> str:
+        """Comma-separated selected IDs for reliable JS comparison."""
+        return "," + ",".join(str(s) for s in self.selected_ids) + ","
+
+    def _refresh_page(self):
+        """Recompute paged_products from current page."""
+        start = self.page * self.page_size
+        end = start + self.page_size
+        self.paged_products = self.products[start:end]
+        total = len(self.products)
+        self.total_pages = max(1, (total + self.page_size - 1) // self.page_size)
+        self.page_start = start + 1
+        self.page_end = min(end, total)
+
+    # ── Selection ─────────────────────────────────────────
+    def toggle_select(self, product_id: int):
+        sid = str(int(product_id))
+        if sid in self.selected_ids:
+            self.selected_ids = [i for i in self.selected_ids if i != sid]
+        else:
+            self.selected_ids = [*self.selected_ids, sid]
+        self.select_all = len(self.selected_ids) == len(self.products)
+
+    def toggle_select_all(self):
+        if self.select_all:
+            self.selected_ids = []
+            self.select_all = False
+        else:
+            self.selected_ids = [str(p["id"]) for p in self.products]
+            self.select_all = True
+
+    def clear_selection(self):
+        self.selected_ids = []
+        self.select_all = False
+
+    def open_export_view(self):
+        self.selected_ids = []
+        self.select_all = False
+        self.show_export_view = True
+
+    def close_export_view(self):
+        self.show_export_view = False
+        self.selected_ids = []
+        self.select_all = False
+
+    def cancel_export(self):
+        self.export_cancelled = True
 
     def remove_image(self, index: int):
         """Remove image from list — delete from server if temp."""
@@ -469,52 +569,91 @@ class ProductState(AuthState):
 
     def export_excel(self):
         self.is_exporting_excel = True
+        self.export_cancelled = False
+        self.export_progress = 0
+        self.export_current = "Loading products..."
         yield
         with rx.session() as session:
             rows = session.execute(
                 select(Product).where(Product.list_id == self.current_list_id).order_by(Product.created_at)
             ).scalars().all()
-            products = [
-                {
-                    "store": p.store or "", "store_contact": p.store_contact or "",
-                    "reference": p.reference or "", "description": p.description or "",
-                    "measurement": p.measurement or "", "price": p.price,
-                    "qty": p.qty, "cbm": p.cbm, "material": p.material or "",
-                    "notes": p.notes or "",
-                    "image_paths": self._parse_image_paths(p.image_paths or ""),
-                }
-                for p in rows
-            ]
+            rows = list(rows)
+        # Filter by selection if any
+        if self.selected_ids:
+            rows = [r for r in rows if str(r.id) in self.selected_ids]
+        total = len(rows)
+        products = []
+        for i, p in enumerate(rows):
+            ref = p.reference or p.description or f"Product {i+1}"
+            self.export_current = ref[:30]
+            self.export_progress = int((i / max(total, 1)) * 90)
+            yield
+            products.append({
+                "store": p.store or "", "store_contact": p.store_contact or "",
+                "reference": p.reference or "", "description": p.description or "",
+                "measurement": p.measurement or "", "price": p.price,
+                "qty": p.qty, "cbm": p.cbm, "material": p.material or "",
+                "notes": p.notes or "",
+                "image_paths": self._parse_image_paths(p.image_paths or ""),
+            })
+        if self.export_cancelled:
+            self.is_exporting_excel = False; self.export_cancelled = False; return
+        self.export_current = "Building Excel file..."
+        self.export_progress = 92
+        yield
         excel_bytes = export_to_excel(self.current_list_name, self.current_list_desc, products)
-        b64 = base64.b64encode(excel_bytes).decode()
+        self.export_progress = 95
+        self.export_current = "Uploading to server..."
+        yield
         filename = f"{self.current_list_name.replace(' ', '_')}.xlsx"
+        url = upload_export(filename, excel_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         self.is_exporting_excel = False
-        yield rx.call_script(
-            f"const a=document.createElement('a');a.href='data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}';a.download='{filename}';document.body.appendChild(a);a.click();document.body.removeChild(a);"
-        )
+        self.export_progress = 100
+        yield rx.call_script(f"window.open('{url}', '_blank') || (window.location.href='{url}')")
 
     def export_zip(self):
         self.is_exporting_zip = True
+        self.export_cancelled = False
+        self.export_progress = 0
+        self.export_current = "Loading products..."
         yield
         with rx.session() as session:
             rows = session.execute(
                 select(Product).where(Product.list_id == self.current_list_id).order_by(Product.created_at)
             ).scalars().all()
-            products = [
-                {
-                    "store": p.store or "", "store_contact": p.store_contact or "",
-                    "reference": p.reference or "", "description": p.description or "",
-                    "measurement": p.measurement or "", "price": p.price,
-                    "qty": p.qty, "cbm": p.cbm, "material": p.material or "",
-                    "notes": p.notes or "",
-                    "image_paths": self._parse_image_paths(p.image_paths or ""),
-                }
-                for p in rows
-            ]
+            rows = list(rows)
+        # Filter by selection if any
+        if self.selected_ids:
+            rows = [r for r in rows if str(r.id) in self.selected_ids]
+        total = len(rows)
+        products = []
+        for i, p in enumerate(rows):
+            ref = p.reference or p.description or f"Product {i+1}"
+            self.export_current = f"Downloading {ref[:25]}..."
+            self.export_progress = int((i / max(total, 1)) * 85)
+            yield
+            products.append({
+                "store": p.store or "", "store_contact": p.store_contact or "",
+                "reference": p.reference or "", "description": p.description or "",
+                "measurement": p.measurement or "", "price": p.price,
+                "qty": p.qty, "cbm": p.cbm, "material": p.material or "",
+                "notes": p.notes or "",
+                "image_paths": self._parse_image_paths(p.image_paths or ""),
+            })
+        if self.export_cancelled:
+            self.is_exporting_zip = False; self.export_cancelled = False; return
+        self.export_current = "Building Excel..."
+        self.export_progress = 87
+        yield
+        self.export_current = "Packing ZIP..."
+        self.export_progress = 93
+        yield
         zip_bytes = export_list_zip(self.current_list_name, self.current_list_desc, products)
-        b64 = base64.b64encode(zip_bytes).decode()
+        self.export_progress = 95
+        self.export_current = "Uploading to server..."
+        yield
         filename = f"{self.current_list_name.replace(' ', '_')}_export.zip"
+        url = upload_export(filename, zip_bytes, "application/zip")
         self.is_exporting_zip = False
-        yield rx.call_script(
-            f"const a=document.createElement('a');a.href='data:application/zip;base64,{b64}';a.download='{filename}';document.body.appendChild(a);a.click();document.body.removeChild(a);"
-        )
+        self.export_progress = 100
+        yield rx.call_script(f"window.open('{url}', '_blank') || (window.location.href='{url}')")

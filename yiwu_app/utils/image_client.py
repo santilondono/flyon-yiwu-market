@@ -172,4 +172,23 @@ def upload_temp_image(
         return filepath
     except Exception as e:
         raise Exception(f"Upload failed: {str(e)}")
+def upload_export(filename: str, file_bytes: bytes, content_type: str) -> str:
+    """
+    Upload an export file (Excel/ZIP) to the image server.
+    Returns the direct download URL.
+    """
+    try:
+        r = httpx.post(
+            f"{IMAGE_SERVER_URL}/save-export",
+            files={"file": (filename, file_bytes, content_type)},
+            data={"filename": filename},
+            headers=_headers(),
+            timeout=60,
+        )
+        r.raise_for_status()
+        data = r.json()
+        safe_name = data["filename"]
+        return f"{IMAGE_SERVER_URL}/exports/{safe_name}"
+    except Exception as e:
+        raise Exception(f"Export upload failed: {str(e)}")
 

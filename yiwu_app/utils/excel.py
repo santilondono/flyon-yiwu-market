@@ -97,7 +97,15 @@ def export_to_excel(list_name: str, description: str, products: list) -> bytes:
             if img_bytes:
                 try:
                     import io as _io
-                    img = XLImage(_io.BytesIO(img_bytes))
+                    from PIL import Image as PILImage
+                    pil = PILImage.open(_io.BytesIO(img_bytes))
+                    if pil.mode in ("RGBA", "P"):
+                        pil = pil.convert("RGB")
+                    pil.thumbnail((120, 120), PILImage.LANCZOS)
+                    buf = _io.BytesIO()
+                    pil.save(buf, format="JPEG", quality=45, optimize=True)
+                    buf.seek(0)
+                    img = XLImage(buf)
                     img.width = 75; img.height = 68
                     ws.add_image(img, f"A{er}")
                 except Exception:

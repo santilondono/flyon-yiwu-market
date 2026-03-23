@@ -6,7 +6,14 @@ import os
 IMAGE_SERVER_URL = os.getenv("IMAGE_SERVER_URL", "https://images.flyon-yiwu-market.com")
 IMAGE_SERVER_API_KEY = os.getenv("IMAGE_SERVER_API_KEY", "")
 
-UNITS = ["mm", "cm", "m", "inches", "ft"]
+UNITS = ["mm", "cm", "m", "inch", "ft"]
+
+MATERIALS = [
+    "Plástico", "Metal", "Poliéster", "Tela", "Papel",
+    "Madera", "Vidrio", "Goma", "Espuma", "Bambú",
+    "Látex", "Silicona", "Parafina", "Cerámica",
+    "Acrílico", "Nailon", "Cuero Sintético", "Fibra de vidrio",
+]
 
 
 def field(label: str, component) -> rx.Component:
@@ -33,7 +40,8 @@ def num_input(placeholder: str, value, on_change, step="0.01") -> rx.Component:
         placeholder=placeholder,
         default_value=value,
         on_blur=on_change,
-        type="number", step=step,
+        on_key_up=rx.call_script("event.target.value = event.target.value.replace(/,/g, '.')"),
+        type="text",
         input_mode="decimal",
         background=BG2, border=f"1px solid {BORDER}", border_radius="10px",
         color=TEXT, font_family=FONT, font_size="15px",
@@ -63,7 +71,8 @@ def measurement_section() -> rx.Component:
                 placeholder="Value",
                 default_value=ProductState.pf_m1,
                 on_blur=ProductState.set_pf_m1,
-                type="number", step="any", input_mode="decimal",
+                on_key_up=rx.call_script("event.target.value = event.target.value.replace(/,/g, '.')"),
+                type="text", input_mode="decimal",
                 background=BG2, border=f"1px solid {BORDER}", border_radius="10px",
                 color=TEXT, font_family=FONT, font_size="15px",
                 padding="12px 10px", height="46px", width="90px",
@@ -76,7 +85,8 @@ def measurement_section() -> rx.Component:
                 placeholder="Value",
                 default_value=ProductState.pf_m2,
                 on_blur=ProductState.set_pf_m2,
-                type="number", step="any", input_mode="decimal",
+                on_key_up=rx.call_script("event.target.value = event.target.value.replace(/,/g, '.')"),
+                type="text", input_mode="decimal",
                 background=BG2, border=f"1px solid {BORDER}", border_radius="10px",
                 color=TEXT, font_family=FONT, font_size="15px",
                 padding="12px 10px", height="46px", width="90px",
@@ -89,7 +99,8 @@ def measurement_section() -> rx.Component:
                 placeholder="Value",
                 default_value=ProductState.pf_m3,
                 on_blur=ProductState.set_pf_m3,
-                type="number", step="any", input_mode="decimal",
+                on_key_up=rx.call_script("event.target.value = event.target.value.replace(/,/g, '.')"),
+                type="text", input_mode="decimal",
                 background=BG2, border=f"1px solid {BORDER}", border_radius="10px",
                 color=TEXT, font_family=FONT, font_size="15px",
                 padding="12px 10px", height="46px", width="90px",
@@ -306,7 +317,48 @@ def product_modal() -> rx.Component:
                         field("CBM (m³)", num_input("0.00", ProductState.pf_cbm, ProductState.set_pf_cbm)),
                         columns="3", gap="12px", width="100%",
                     ),
-                    field("Material", txt_input("e.g. STAINLESS STEEL", ProductState.pf_material, ProductState.set_pf_material)),
+                    rx.vstack(
+                        rx.hstack(
+                            rx.text("Material", **label_style),
+                            rx.cond(
+                                ProductState.pf_material != "",
+                                rx.text(ProductState.pf_material, font_size="11px", color=TEXT3,
+                                        font_family=FONT, no_of_lines=1, max_width="200px"),
+                            ),
+                            align="center", gap="8px", width="100%",
+                        ),
+                        rx.flex(
+                            *[
+                                rx.button(
+                                    mat,
+                                    on_click=ProductState.toggle_material(mat),
+                                    background=rx.cond(
+                                        ProductState.pf_material_selected.contains(mat),
+                                        ACCENT, BG3,
+                                    ),
+                                    color=rx.cond(
+                                        ProductState.pf_material_selected.contains(mat),
+                                        "white", TEXT2,
+                                    ),
+                                    border=rx.cond(
+                                        ProductState.pf_material_selected.contains(mat),
+                                        f"1px solid {ACCENT}", f"1px solid {BORDER}",
+                                    ),
+                                    border_radius="20px",
+                                    padding="6px 14px",
+                                    font_size="13px",
+                                    font_family=FONT,
+                                    cursor="pointer",
+                                    height="34px",
+                                    _hover=dict(border_color=ACCENT),
+                                    transition="all 0.15s",
+                                )
+                                for mat in MATERIALS
+                            ],
+                            wrap="wrap", gap="8px", width="100%",
+                        ),
+                        align="start", width="100%", gap="8px",
+                    ),
                     field("Notes",
                         rx.text_area(
                             placeholder="MOQ, PACKAGING, LEAD TIME...",
