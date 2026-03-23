@@ -25,9 +25,9 @@ def login_page() -> rx.Component:
             # Form
             rx.vstack(
                 rx.vstack(
-                    rx.text("Username", **label_style),
+                    rx.text("Usuario", **label_style),
                     rx.input(
-                        placeholder="Enter your username",
+                        placeholder="Ingresa tu usuario",
                         default_value=AuthState.form_email,
                         on_change=AuthState.set_email,
                         **input_style,
@@ -35,7 +35,7 @@ def login_page() -> rx.Component:
                     align="start", width="100%", gap="4px",
                 ),
                 rx.vstack(
-                    rx.text("Password", **label_style),
+                    rx.text("Contraseña", **label_style),
                     rx.input(
                         placeholder="••••••••",
                         default_value=AuthState.form_password,
@@ -63,8 +63,8 @@ def login_page() -> rx.Component:
                 rx.button(
                     rx.cond(
                         AuthState.is_loading,
-                        rx.hstack(rx.spinner(size="2"), rx.text("Signing in...")),
-                        rx.hstack(rx.icon("log_in", size=16), rx.text("Sign in")),
+                        rx.hstack(rx.spinner(size="2"), rx.text("Iniciando sesión...")),
+                        rx.hstack(rx.icon("log_in", size=16), rx.text("Iniciar sesión")),
                     ),
                     on_click=AuthState.login,
                     disabled=AuthState.is_loading,

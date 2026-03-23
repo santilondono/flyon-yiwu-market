@@ -71,7 +71,7 @@ def list_modal() -> rx.Component:
             rx.box(
                 rx.hstack(
                     rx.text(
-                        rx.cond(ListState.editing_list_id > 0, "Edit list", "New list"),
+                        rx.cond(ListState.editing_list_id > 0, "Editar lista", "Nueva lista"),
                         font_size="18px", font_weight="600", color=TEXT, font_family=FONT,
                     ),
                     rx.spacer(),
@@ -94,7 +94,7 @@ def list_modal() -> rx.Component:
                         align="start", width="100%", gap="4px",
                     ),
                     rx.vstack(
-                        rx.text("Description (optional)", **label_style),
+                        rx.text("Descripción (opcional)", **label_style),
                         rx.text_area(
                             placeholder="e.g. Summer season products...",
                             value=ListState.list_form_desc, on_change=ListState.set_list_desc,
@@ -107,9 +107,9 @@ def list_modal() -> rx.Component:
                         rx.text(ListState.list_error, color=DANGER, font_size="13px"),
                     ),
                     rx.hstack(
-                        rx.button("Cancel", on_click=ListState.close_list_modal, **btn_ghost),
+                        rx.button("Cancelar", on_click=ListState.close_list_modal, **btn_ghost),
                         rx.button(
-                            rx.hstack(rx.icon("save", size=15), rx.text(rx.cond(ListState.editing_list_id > 0, "Save", "Create"))),
+                            rx.hstack(rx.icon("save", size=15), rx.text(rx.cond(ListState.editing_list_id > 0, "Guardar", "Crear"))),
                             on_click=ListState.save_list, **btn_primary,
                         ),
                         justify="end", gap="10px", width="100%",
@@ -137,12 +137,12 @@ def lists_page() -> rx.Component:
             # ── Header ─────────────────────────────────────
             rx.hstack(
                 rx.vstack(
-                    rx.text("My Lists", font_size="24px", font_weight="700", color=TEXT, font_family=FONT),
+                    rx.text("Mis Listas", font_size="24px", font_weight="700", color=TEXT, font_family=FONT),
                     rx.text(
                         rx.cond(
                             ListState.lists.length() > 0,
                             ListState.lists.length().to_string() + " lists",
-                            "No lists yet",
+                            "Sin listas aún",
                         ),
                         font_size="13px", color=TEXT3, font_family=FONT,
                     ),
@@ -150,7 +150,7 @@ def lists_page() -> rx.Component:
                 ),
                 rx.spacer(),
                 rx.button(
-                    rx.hstack(rx.icon("plus", size=16), rx.text("New list")),
+                    rx.hstack(rx.icon("plus", size=16), rx.text("Nueva lista")),
                     on_click=ListState.open_create_modal,
                     **{**btn_primary, "padding": "9px 16px"},
                 ),
@@ -163,7 +163,7 @@ def lists_page() -> rx.Component:
                 rx.box(
                     rx.vstack(
                         rx.spinner(size="3", color="blue"),
-                        rx.text("Loading lists...", font_size="14px", color=TEXT3, font_family=FONT),
+                        rx.text("Cargando listas...", font_size="14px", color=TEXT3, font_family=FONT),
                         align="center", gap="12px",
                     ),
                     display="flex", align_items="center", justify_content="center",
@@ -178,10 +178,10 @@ def lists_page() -> rx.Component:
                     rx.box(
                         rx.vstack(
                             rx.icon("package_open", size=44, color=TEXT3),
-                            rx.text("No lists yet", font_size="16px", font_weight="600", color=TEXT2, font_family=FONT),
-                            rx.text("Create your first list to start cataloging.", font_size="13px", color=TEXT3, font_family=FONT, text_align="center"),
+                            rx.text("Sin listas aún", font_size="16px", font_weight="600", color=TEXT2, font_family=FONT),
+                            rx.text("Crea tu primera lista para comenzar a catalogar.", font_size="13px", color=TEXT3, font_family=FONT, text_align="center"),
                             rx.button(
-                                rx.hstack(rx.icon("plus", size=15), rx.text("Create first list")),
+                                rx.hstack(rx.icon("plus", size=15), rx.text("Crear primera lista")),
                                 on_click=ListState.open_create_modal,
                                 **{**btn_primary, "margin_top": "8px"},
                             ),

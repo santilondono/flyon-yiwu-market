@@ -65,10 +65,10 @@ def unit_select(value, on_change) -> rx.Component:
 
 def measurement_section() -> rx.Component:
     return rx.vstack(
-        rx.text("Measurement", **label_style),
+        rx.text("Medidas", **label_style),
         rx.hstack(
             rx.input(
-                placeholder="Value",
+                placeholder="Valor",
                 default_value=ProductState.pf_m1,
                 on_blur=ProductState.set_pf_m1,
                 on_key_up=rx.call_script("event.target.value = event.target.value.replace(/,/g, '.')"),
@@ -82,7 +82,7 @@ def measurement_section() -> rx.Component:
             unit_select(ProductState.pf_u1, ProductState.set_pf_u1),
             rx.text("×", color=TEXT3, font_size="18px", padding_x="4px"),
             rx.input(
-                placeholder="Value",
+                placeholder="Valor",
                 default_value=ProductState.pf_m2,
                 on_blur=ProductState.set_pf_m2,
                 on_key_up=rx.call_script("event.target.value = event.target.value.replace(/,/g, '.')"),
@@ -96,7 +96,7 @@ def measurement_section() -> rx.Component:
             unit_select(ProductState.pf_u2, ProductState.set_pf_u2),
             rx.text("×", color=TEXT3, font_size="18px", padding_x="4px"),
             rx.input(
-                placeholder="Value",
+                placeholder="Valor",
                 default_value=ProductState.pf_m3,
                 on_blur=ProductState.set_pf_m3,
                 on_key_up=rx.call_script("event.target.value = event.target.value.replace(/,/g, '.')"),
@@ -111,7 +111,7 @@ def measurement_section() -> rx.Component:
             align="center", gap="4px", flex_wrap="wrap", width="100%",
         ),
         rx.text(
-            "Preview: ",
+            "Vista previa: ",
             rx.cond(ProductState.pf_m1 != "", ProductState.pf_m1 + ProductState.pf_u1, ""),
             rx.cond((ProductState.pf_m1 != "") & (ProductState.pf_m2 != ""), " × ", ""),
             rx.cond(ProductState.pf_m2 != "", ProductState.pf_m2 + ProductState.pf_u2, ""),
@@ -202,7 +202,7 @@ window.__uploadInit = function() {{
                     setter.call(bridge, fp + '|||' + pu);
                     bridge.dispatchEvent(new Event('input', {{ bubbles: true }}));
                 }}
-            }} catch(e) {{ console.error('Upload error:', e); }}
+            }} catch(e) {{ console.error('Error al subir:', e); }}
         }}
         if (spinner) spinner.style.display = 'none';
         this.value = '';
@@ -214,11 +214,11 @@ window.__uploadInit = function() {{
 def direct_upload_section() -> rx.Component:
     return rx.vstack(
         rx.hstack(
-            rx.text("Photos", **label_style),
+            rx.text("Fotos", **label_style),
             rx.cond(
                 ProductState.pf_image_urls.length() > 0,
                 rx.box(
-                    rx.text(ProductState.pf_image_urls.length().to_string() + " uploaded",
+                    rx.text(ProductState.pf_image_urls.length().to_string() + " subidas",
                             font_size="12px", color=ACCENT, font_family=FONT),
                     **badge_accent,
                 ),
@@ -245,7 +245,7 @@ def direct_upload_section() -> rx.Component:
             rx.box(
                 rx.vstack(
                     rx.icon("camera", size=24, color=TEXT3),
-                    rx.text("Tap to add photos", font_size="13px", color=TEXT3, text_align="center"),
+                    rx.text("Toca para agregar fotos", font_size="13px", color=TEXT3, text_align="center"),
                     rx.text("JPG · PNG · WebP", font_size="11px", color=TEXT3),
                     align="center", gap="4px",
                 ),
@@ -259,7 +259,7 @@ def direct_upload_section() -> rx.Component:
             ),
             rx.box(
                 rx.vstack(rx.spinner(size="3", color="blue"),
-                          rx.text("Uploading...", font_size="13px", color=TEXT2, font_family=FONT),
+                          rx.text("Subiendo...", font_size="13px", color=TEXT2, font_family=FONT),
                           align="center", gap="8px"),
                 id="upload-spinner",
                 position="absolute", top="0", left="0",
@@ -283,7 +283,7 @@ def product_modal() -> rx.Component:
                     # Header
                     rx.hstack(
                         rx.text(
-                            rx.cond(ProductState.editing_product_id > 0, "Edit product", "New product"),
+                            rx.cond(ProductState.editing_product_id > 0, "Editar producto", "Nuevo producto"),
                             font_size="18px", font_weight="600", color=TEXT, font_family=FONT,
                         ),
                         rx.spacer(),
@@ -299,20 +299,20 @@ def product_modal() -> rx.Component:
                     direct_upload_section(),
 
                     rx.grid(
-                        field("Store", txt_input("e.g. FASHION WORLD A-12", ProductState.pf_store, ProductState.set_pf_store)),
-                        field("Store contact", txt_input("e.g. WECHAT: JOHN88", ProductState.pf_store_contact, ProductState.set_pf_store_contact)),
+                        field("Tienda", txt_input("e.g. FASHION WORLD A-12", ProductState.pf_store, ProductState.set_pf_store)),
+                        field("Contacto tienda", txt_input("e.g. WECHAT: JOHN88", ProductState.pf_store_contact, ProductState.set_pf_store_contact)),
                         columns="2", gap="12px", width="100%",
                     ),
                     rx.grid(
-                        field("Reference *", txt_input("e.g. FW-2025-001", ProductState.pf_reference, ProductState.set_pf_reference)),
-                        field("Description", txt_input("PRODUCT NAME / MODEL", ProductState.pf_description, ProductState.set_pf_description)),
+                        field("Referencia *", txt_input("Ej. FW-2025-001", ProductState.pf_reference, ProductState.set_pf_reference)),
+                        field("Descripción", txt_input("PRODUCT NAME / MODEL", ProductState.pf_description, ProductState.set_pf_description)),
                         columns="2", gap="12px", width="100%",
                     ),
 
                     measurement_section(),
 
                     rx.grid(
-                        field("Price (¥)", num_input("0.00", ProductState.pf_price, ProductState.set_pf_price)),
+                        field("Precio (¥)", num_input("0.00", ProductState.pf_price, ProductState.set_pf_price)),
                         field("QTY", num_input("0", ProductState.pf_qty, ProductState.set_pf_qty, step="1")),
                         field("CBM (m³)", num_input("0.00", ProductState.pf_cbm, ProductState.set_pf_cbm)),
                         columns="3", gap="12px", width="100%",
@@ -359,7 +359,7 @@ def product_modal() -> rx.Component:
                         ),
                         align="start", width="100%", gap="8px",
                     ),
-                    field("Notes",
+                    field("Notas",
                         rx.text_area(
                             placeholder="MOQ, PACKAGING, LEAD TIME...",
                             default_value=ProductState.pf_notes,
@@ -377,12 +377,12 @@ def product_modal() -> rx.Component:
                         rx.text(ProductState.product_error, color=DANGER, font_size="13px"),
                     ),
                     rx.hstack(
-                        rx.button("Cancel", on_click=ProductState.close_product_modal, **btn_ghost),
+                        rx.button("Cancelar", on_click=ProductState.close_product_modal, **btn_ghost),
                         rx.button(
                             rx.cond(
                                 ProductState.is_saving,
-                                rx.hstack(rx.spinner(size="2"), rx.text("Saving...")),
-                                rx.hstack(rx.icon("save", size=15), rx.text(rx.cond(ProductState.editing_product_id > 0, "Update", "Add product"))),
+                                rx.hstack(rx.spinner(size="2"), rx.text("Guardando...")),
+                                rx.hstack(rx.icon("save", size=15), rx.text(rx.cond(ProductState.editing_product_id > 0, "Actualizar", "Agregar producto"))),
                             ),
                             on_click=ProductState.save_product,
                             disabled=ProductState.is_saving, **btn_primary,

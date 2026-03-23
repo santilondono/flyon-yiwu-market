@@ -19,7 +19,7 @@ def create_user_modal() -> rx.Component:
                 ),
                 rx.vstack(
                     rx.vstack(
-                        rx.text("Full name", **label_style),
+                        rx.text("Nombre completo", **label_style),
                         rx.input(placeholder="e.g. Juan García", value=AdminState.new_name,
                                  on_change=AdminState.set_new_name, **input_style),
                         align="start", width="100%", gap="4px",
@@ -31,7 +31,7 @@ def create_user_modal() -> rx.Component:
                         align="start", width="100%", gap="4px",
                     ),
                     rx.vstack(
-                        rx.text("Password", **label_style),
+                        rx.text("Contraseña", **label_style),
                         rx.input(placeholder="Min. 6 characters", value=AdminState.new_password,
                                  on_change=AdminState.set_new_password, type="password", **input_style),
                         align="start", width="100%", gap="4px",
@@ -46,12 +46,12 @@ def create_user_modal() -> rx.Component:
                         ),
                     ),
                     rx.hstack(
-                        rx.button("Cancel", on_click=AdminState.close_create_modal, **btn_ghost),
+                        rx.button("Cancelar", on_click=AdminState.close_create_modal, **btn_ghost),
                         rx.button(
                             rx.cond(
                                 AdminState.is_saving,
                                 rx.hstack(rx.spinner(size="2"), rx.text("Creating...")),
-                                rx.hstack(rx.icon("user_plus", size=15), rx.text("Create user")),
+                                rx.hstack(rx.icon("user_plus", size=15), rx.text("Crear usuario")),
                             ),
                             on_click=AdminState.create_user,
                             disabled=AdminState.is_saving, **btn_primary,
@@ -90,7 +90,7 @@ def change_password_modal() -> rx.Component:
                         align="start", width="100%", gap="4px",
                     ),
                     rx.vstack(
-                        rx.text("New password", **label_style),
+                        rx.text("Nueva contraseña", **label_style),
                         rx.input(placeholder="Min. 6 characters", value=AdminState.pw_new,
                                  on_change=AdminState.set_pw_new, type="password", **input_style),
                         align="start", width="100%", gap="4px",
@@ -120,7 +120,7 @@ def change_password_modal() -> rx.Component:
                         ),
                     ),
                     rx.hstack(
-                        rx.button("Cancel", on_click=AdminState.close_pw_modal, **btn_ghost),
+                        rx.button("Cancelar", on_click=AdminState.close_pw_modal, **btn_ghost),
                         rx.button(
                             rx.hstack(rx.icon("lock", size=15), rx.text("Update password")),
                             on_click=AdminState.change_password, **btn_primary,
@@ -200,7 +200,7 @@ def admin_page() -> rx.Component:
                 rx.spacer(),
                 rx.hstack(
                     rx.button(
-                        rx.hstack(rx.icon("lock", size=14), rx.text("Change password")),
+                        rx.hstack(rx.icon("lock", size=14), rx.text("Cambiar contraseña")),
                         on_click=AdminState.open_pw_modal,
                         **{**btn_ghost, "font_size": "13px", "padding": "8px 14px"},
                     ),
@@ -237,7 +237,7 @@ def admin_page() -> rx.Component:
             # ── Users list ─────────────────────────────────
             rx.vstack(
                 rx.hstack(
-                    rx.text("Users", font_size="16px", font_weight="600", color=TEXT, font_family=FONT),
+                    rx.text("Usuarios", font_size="16px", font_weight="600", color=TEXT, font_family=FONT),
                     rx.spacer(),
                     rx.text(AdminState.users.length().to_string() + " total",
                             font_size="13px", color=TEXT3, font_family=FONT),

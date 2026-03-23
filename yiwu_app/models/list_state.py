@@ -73,7 +73,7 @@ class ListState(AuthState):
 
     def save_list(self):
         if not self.list_form_name.strip():
-            self.list_error = "List name is required."
+            self.list_error = "El nombre de la lista es obligatorio."
             return
         name = self.list_form_name.strip()
         with rx.session() as session:

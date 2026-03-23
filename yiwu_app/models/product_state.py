@@ -424,7 +424,7 @@ class ProductState(AuthState):
 
     def save_product(self):
         if not self.pf_reference.strip() and not self.pf_description.strip():
-            self.product_error = "Reference or description is required."
+            self.product_error = "La referencia o descripción es obligatoria."
             return
         self.is_saving = True
         self.product_error = ""
@@ -571,7 +571,7 @@ class ProductState(AuthState):
         self.is_exporting_excel = True
         self.export_cancelled = False
         self.export_progress = 0
-        self.export_current = "Loading products..."
+        self.export_current = "Cargando productos..."
         yield
         with rx.session() as session:
             rows = session.execute(
@@ -598,12 +598,12 @@ class ProductState(AuthState):
             })
         if self.export_cancelled:
             self.is_exporting_excel = False; self.export_cancelled = False; return
-        self.export_current = "Building Excel file..."
+        self.export_current = "Construyendo archivo Excel..."
         self.export_progress = 92
         yield
         excel_bytes = export_to_excel(self.current_list_name, self.current_list_desc, products)
         self.export_progress = 95
-        self.export_current = "Uploading to server..."
+        self.export_current = "Subiendo al servidor..."
         yield
         filename = f"{self.current_list_name.replace(' ', '_')}.xlsx"
         url = upload_export(filename, excel_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -615,7 +615,7 @@ class ProductState(AuthState):
         self.is_exporting_zip = True
         self.export_cancelled = False
         self.export_progress = 0
-        self.export_current = "Loading products..."
+        self.export_current = "Cargando productos..."
         yield
         with rx.session() as session:
             rows = session.execute(
@@ -629,7 +629,7 @@ class ProductState(AuthState):
         products = []
         for i, p in enumerate(rows):
             ref = p.reference or p.description or f"Product {i+1}"
-            self.export_current = f"Downloading {ref[:25]}..."
+            self.export_current = f"Descargando {ref[:25]}..."
             self.export_progress = int((i / max(total, 1)) * 85)
             yield
             products.append({
@@ -642,15 +642,15 @@ class ProductState(AuthState):
             })
         if self.export_cancelled:
             self.is_exporting_zip = False; self.export_cancelled = False; return
-        self.export_current = "Building Excel..."
+        self.export_current = "Construyendo Excel..."
         self.export_progress = 87
         yield
-        self.export_current = "Packing ZIP..."
+        self.export_current = "Empaquetando ZIP..."
         self.export_progress = 93
         yield
         zip_bytes = export_list_zip(self.current_list_name, self.current_list_desc, products)
         self.export_progress = 95
-        self.export_current = "Uploading to server..."
+        self.export_current = "Subiendo al servidor..."
         yield
         filename = f"{self.current_list_name.replace(' ', '_')}_export.zip"
         url = upload_export(filename, zip_bytes, "application/zip")

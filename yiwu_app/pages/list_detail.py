@@ -59,7 +59,7 @@ def export_progress_overlay() -> rx.Component:
                         display="flex", align_items="center", justify_content="center",
                     ),
                     rx.text(
-                        rx.cond(ProductState.is_exporting_zip, "Generating ZIP", "Generating Excel"),
+                        rx.cond(ProductState.is_exporting_zip, "Generando ZIP", "Generando Excel"),
                         font_size="17px", font_weight="600", color=TEXT, font_family=FONT,
                     ),
                     rx.text(
@@ -83,7 +83,7 @@ def export_progress_overlay() -> rx.Component:
                         font_size="13px", font_weight="600", color=TEXT2, font_family=FONT,
                     ),
                     rx.button(
-                        rx.hstack(rx.icon("x", size=14), rx.text("Cancel")),
+                        rx.hstack(rx.icon("x", size=14), rx.text("Cancelar")),
                         on_click=ProductState.cancel_export,
                         background="transparent", color=DANGER,
                         border=f"1px solid {DANGER}", border_radius="8px",
@@ -123,14 +123,14 @@ def export_view() -> rx.Component:
                         cursor="pointer", padding="8px", border_radius="8px",
                         _hover=dict(background=BG3, color=TEXT), transition="all 0.15s",
                     ),
-                    rx.text("Export", font_size="20px", font_weight="700", color=TEXT, font_family=FONT),
+                    rx.text("Exportar", font_size="20px", font_weight="700", color=TEXT, font_family=FONT),
                     rx.spacer(),
                     # Select all toggle
                     rx.button(
                         rx.cond(
                             ProductState.select_all,
-                            rx.hstack(rx.icon("square_check", size=14), rx.text("Deselect all")),
-                            rx.hstack(rx.icon("square", size=14), rx.text("Select all")),
+                            rx.hstack(rx.icon("square_check", size=14), rx.text("Deseleccionar todo")),
+                            rx.hstack(rx.icon("square", size=14), rx.text("Seleccionar todo")),
                         ),
                         on_click=ProductState.toggle_select_all,
                         background="transparent", color=TEXT2, border=f"1px solid {BORDER}",
@@ -151,13 +151,13 @@ def export_view() -> rx.Component:
                 ProductState.selected_ids.length() > 0,
                 rx.hstack(
                     rx.text(
-                        ProductState.selected_ids.length().to_string() + " of " +
-                        ProductState.products.length().to_string() + " selected",
+                        ProductState.selected_ids.length().to_string() + " de " +
+                        ProductState.products.length().to_string() + " seleccionados",
                         font_size="13px", color=ACCENT, font_family=FONT, font_weight="500",
                     ),
                     rx.spacer(),
                     rx.button(
-                        "Clear",
+                        "Limpiar",
                         on_click=ProductState.clear_selection,
                         background="transparent", color=TEXT3, border="none",
                         font_size="12px", font_family=FONT, cursor="pointer",
@@ -187,8 +187,8 @@ def export_view() -> rx.Component:
                     rx.text(
                         rx.cond(
                             ProductState.selected_ids.length() > 0,
-                            "Exporting " + ProductState.selected_ids.length().to_string() + " products",
-                            "Exporting all " + ProductState.products.length().to_string() + " products",
+                            "Exportando " + ProductState.selected_ids.length().to_string() + " productos",
+                            "Exportando todos — " + ProductState.products.length().to_string() + " productos",
                         ),
                         font_size="12px", color=TEXT3, font_family=FONT, text_align="center",
                     ),
@@ -197,7 +197,7 @@ def export_view() -> rx.Component:
                             rx.cond(
                                 ProductState.is_exporting_excel,
                                 rx.hstack(rx.spinner(size="2"), rx.text("Excel...")),
-                                rx.hstack(rx.icon("file_spreadsheet", size=16), rx.text("Export Excel")),
+                                rx.hstack(rx.icon("file_spreadsheet", size=16), rx.text("Exportar Excel")),
                             ),
                             on_click=ProductState.export_excel,
                             disabled=ProductState.is_exporting_excel | ProductState.is_exporting_zip,
@@ -207,7 +207,7 @@ def export_view() -> rx.Component:
                             rx.cond(
                                 ProductState.is_exporting_zip,
                                 rx.hstack(rx.spinner(size="2"), rx.text("ZIP...")),
-                                rx.hstack(rx.icon("archive", size=16), rx.text("Export ZIP")),
+                                rx.hstack(rx.icon("archive", size=16), rx.text("Exportar ZIP")),
                             ),
                             on_click=ProductState.export_zip,
                             disabled=ProductState.is_exporting_excel | ProductState.is_exporting_zip,
@@ -248,12 +248,12 @@ def confirm_delete_dialog() -> rx.Component:
             rx.box(
                 rx.vstack(
                     rx.icon("triangle_alert", size=32, color=WARNING),
-                    rx.text("Delete product?", font_size="17px", font_weight="600", color=TEXT, font_family=FONT),
-                    rx.text("Photos will also be deleted.", font_size="13px", color=TEXT3, font_family=FONT),
+                    rx.text("¿Eliminar producto?", font_size="17px", font_weight="600", color=TEXT, font_family=FONT),
+                    rx.text("Las fotos también serán eliminadas.", font_size="13px", color=TEXT3, font_family=FONT),
                     rx.hstack(
-                        rx.button("Cancel", on_click=ProductState.cancel_delete, **btn_ghost),
+                        rx.button("Cancelar", on_click=ProductState.cancel_delete, **btn_ghost),
                         rx.button(
-                            rx.hstack(rx.icon("trash_2", size=14), rx.text("Delete")),
+                            rx.hstack(rx.icon("trash_2", size=14), rx.text("Eliminar")),
                             on_click=ProductState.confirm_delete, **btn_danger,
                         ),
                         gap="10px",
@@ -405,7 +405,7 @@ def pagination_controls() -> rx.Component:
             rx.text(
                 "Page ",
                 rx.text.span((ProductState.page + 1).to_string(), font_weight="600"),
-                " of ",
+                " de ",
                 rx.text.span(ProductState.total_pages.to_string(), font_weight="600"),
                 font_size="14px", color=TEXT2, font_family=FONT,
             ),
@@ -436,7 +436,7 @@ def list_detail_page() -> rx.Component:
         rx.box(
             # Back button
             rx.button(
-                rx.hstack(rx.icon("chevron_left", size=15), rx.text("My Lists", font_size="14px")),
+                rx.hstack(rx.icon("chevron_left", size=15), rx.text("Mis Listas", font_size="14px")),
                 on_click=rx.redirect("/lists"),
                 background="transparent", color=TEXT2, border="none",
                 cursor="pointer", padding="4px 8px", border_radius="8px", font_family=FONT,
@@ -454,12 +454,12 @@ def list_detail_page() -> rx.Component:
             rx.hstack(
                 rx.hstack(
                     rx.text(ProductState.products.length().to_string(), font_size="14px", font_weight="600", color=ACCENT),
-                    rx.text(" products", font_size="14px", color=TEXT3),
+                    rx.text(" productos", font_size="14px", color=TEXT3),
                     align="center",
                 ),
                 rx.spacer(),
                 rx.button(
-                    rx.hstack(rx.icon("download", size=14), rx.text("Export")),
+                    rx.hstack(rx.icon("download", size=14), rx.text("Exportar")),
                     disabled=True,
                     background="rgba(100,60,220,0.05)", color="#9b8fd4",
                     border="1px solid transparent", border_radius="10px",
@@ -469,7 +469,7 @@ def list_detail_page() -> rx.Component:
                     title="Coming soon",
                 ),
                 rx.button(
-                    rx.hstack(rx.icon("plus", size=15), rx.text("Add")),
+                    rx.hstack(rx.icon("plus", size=15), rx.text("Agregar")),
                     on_click=ProductState.open_create_product,
                     **{**btn_primary, "padding": "8px 16px"},
                 ),
@@ -482,7 +482,7 @@ def list_detail_page() -> rx.Component:
                 rx.box(
                     rx.vstack(
                         rx.spinner(size="3", color="blue"),
-                        rx.text("Loading products...", font_size="14px", color=TEXT3, font_family=FONT),
+                        rx.text("Cargando productos...", font_size="14px", color=TEXT3, font_family=FONT),
                         align="center", gap="12px",
                     ),
                     display="flex", align_items="center", justify_content="center",
@@ -498,11 +498,11 @@ def list_detail_page() -> rx.Component:
                     rx.box(
                         rx.vstack(
                             rx.icon("package_plus", size=44, color=TEXT3),
-                            rx.text("No products yet", font_size="16px", font_weight="600", color=TEXT2, font_family=FONT),
-                            rx.text('Tap "Add" to register your first product.',
+                            rx.text("Sin productos aún", font_size="16px", font_weight="600", color=TEXT2, font_family=FONT),
+                            rx.text('Toca "Agregar" para registrar tu primer producto.',
                                     font_size="13px", color=TEXT3, font_family=FONT, text_align="center"),
                             rx.button(
-                                rx.hstack(rx.icon("plus", size=15), rx.text("Add first product")),
+                                rx.hstack(rx.icon("plus", size=15), rx.text("Agregar primer producto")),
                                 on_click=ProductState.open_create_product,
                                 **{**btn_primary, "margin_top": "8px"},
                             ),
