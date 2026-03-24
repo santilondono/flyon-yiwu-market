@@ -198,9 +198,11 @@ window.__uploadInit = function() {{
                     const fp = data.filepath || (folder + '/' + tmpName);
                     const pu = '{SERVER}/images/' + fp;
                     const bridge = document.getElementById('_img_bridge');
-                    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-                    setter.call(bridge, fp + '|||' + pu);
-                    bridge.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                    if (bridge) {{
+                        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                        setter.call(bridge, fp + '|||' + pu);
+                        bridge.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                    }}
                 }}
             }} catch(e) {{ console.error('Error al subir:', e); }}
         }}

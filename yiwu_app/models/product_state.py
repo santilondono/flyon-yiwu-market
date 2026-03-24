@@ -93,6 +93,7 @@ class ProductState(AuthState):
         list_id = self.router.page.params.get("list_id", "")
         try:
             if list_id:
+                self.page = 0
                 self._load_list_data(int(list_id))
         except (ValueError, TypeError):
             pass
@@ -112,7 +113,6 @@ class ProductState(AuthState):
             ).scalars().all()
             self.products = [self._to_dict(p) for p in rows]
         self.is_loading_products = False
-        self.page = 0
         self.selected_ids = []
         self.select_all = False
         self._refresh_page()
