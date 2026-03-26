@@ -5,12 +5,10 @@ import os, base64, io
 from datetime import datetime
 from yiwu_app.models.models import ProductList, Product
 from yiwu_app.models.auth_state import AuthState
-from yiwu_app.utils.excel import export_to_excel
-from yiwu_app.utils.export_zip import export_list_zip
 from yiwu_app.utils.image_client import (
     get_image_url, upload_image_to_folder, upload_temp_image,
     delete_image, ensure_folder, rename_images_for_reference,
-    upload_export, IMAGE_SERVER_URL
+    IMAGE_SERVER_URL
 )
 
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "assets/uploads")
@@ -73,18 +71,6 @@ class ProductState(AuthState):
     page: int = 0
     page_size: int = 50
 
-    # Export mode
-    show_export_view: bool = False
-    export_cancelled: bool = False
-
-    # Selection for export
-    selected_ids: list[str] = []
-    select_all: bool = False
-
-    is_exporting_excel: bool = False
-    is_exporting_zip: bool = False
-    export_progress: int = 0       # 0-100
-    export_current: str = ""       # current item label
 
     def on_load(self):
         self._load_user_from_token()
@@ -113,8 +99,6 @@ class ProductState(AuthState):
             ).scalars().all()
             self.products = [self._to_dict(p) for p in rows]
         self.is_loading_products = False
-        self.selected_ids = []
-        self.select_all = False
         self._refresh_page()
 
     def reload_products(self):
@@ -310,9 +294,19 @@ class ProductState(AuthState):
     page_end: int = 0
 
     @rx.var
-    def selected_ids_csv(self) -> str:
-        """Comma-separated selected IDs for reliable JS comparison."""
-        return "," + ",".join(str(s) for s in self.selected_ids) + ","
+    def visible_pages(self) -> list[int]:
+        """Return page numbers to show — max 7 with sliding window."""
+        total = self.total_pages
+        current = self.page
+        if total <= 7:
+            return list(range(total))
+        # Always show first, last, current and 2 neighbors
+        pages = set()
+        pages.add(0)
+        pages.add(total - 1)
+        for p in range(max(0, current - 2), min(total, current + 3)):
+            pages.add(p)
+        return sorted(pages)
 
     def _refresh_page(self):
         """Recompute paged_products from current page."""
@@ -325,38 +319,11 @@ class ProductState(AuthState):
         self.page_end = min(end, total)
 
     # ── Selection ─────────────────────────────────────────
-    def toggle_select(self, product_id: int):
-        sid = str(int(product_id))
-        if sid in self.selected_ids:
-            self.selected_ids = [i for i in self.selected_ids if i != sid]
-        else:
-            self.selected_ids = [*self.selected_ids, sid]
-        self.select_all = len(self.selected_ids) == len(self.products)
 
-    def toggle_select_all(self):
-        if self.select_all:
-            self.selected_ids = []
-            self.select_all = False
-        else:
-            self.selected_ids = [str(p["id"]) for p in self.products]
-            self.select_all = True
 
-    def clear_selection(self):
-        self.selected_ids = []
-        self.select_all = False
 
-    def open_export_view(self):
-        self.selected_ids = []
-        self.select_all = False
-        self.show_export_view = True
 
-    def close_export_view(self):
-        self.show_export_view = False
-        self.selected_ids = []
-        self.select_all = False
 
-    def cancel_export(self):
-        self.export_cancelled = True
 
     def remove_image(self, index: int):
         """Remove image from list — delete from server if temp."""
@@ -423,8 +390,8 @@ class ProductState(AuthState):
         yield rx.call_script("document.getElementById('upload-spinner').style.display='none';")
 
     def save_product(self):
-        if not self.pf_reference.strip() and not self.pf_description.strip():
-            self.product_error = "La referencia o descripción es obligatoria."
+        if not self.pf_reference.strip():
+            self.product_error = "La referencia es obligatoria."
             return
         self.is_saving = True
         self.product_error = ""
@@ -433,7 +400,7 @@ class ProductState(AuthState):
         import pathlib
         from yiwu_app.utils.image_client import httpx as _httpx, IMAGE_SERVER_URL, _headers
 
-        ref = self.pf_reference.strip() or self.pf_description.strip()[:20]
+        ref = self.pf_reference.strip()
 
         # Validate unique reference within this list
         if self.pf_reference.strip():
@@ -466,16 +433,21 @@ class ProductState(AuthState):
                 ext = pathlib.Path(fp).suffix or ".jpg"
                 new_filename = f"{safe_ref}{ext}" if new_index == 1 else f"{safe_ref}_{new_index - 1}{ext}"
                 new_filepath = f"{folder}/{new_filename}"
-                try:
-                    _httpx.post(
-                        f"{IMAGE_SERVER_URL}/rename",
-                        json={"old_path": fp, "new_path": new_filepath},
-                        headers=_headers(),
-                        timeout=10,
-                    )
-                    final_paths.append(new_filepath)
-                except Exception:
-                    final_paths.append(fp)
+                renamed_ok = False
+                for _attempt in range(3):
+                    try:
+                        r = _httpx.post(
+                            f"{IMAGE_SERVER_URL}/rename",
+                            json={"old_path": fp, "new_path": new_filepath},
+                            headers=_headers(),
+                            timeout=15,
+                        )
+                        if r.status_code in (200, 404):
+                            renamed_ok = True
+                            break
+                    except Exception:
+                        pass
+                final_paths.append(new_filepath if renamed_ok else fp)
             else:
                 final_paths.append(fp)
             new_index += 1
@@ -567,49 +539,6 @@ class ProductState(AuthState):
         self.confirm_delete_id = 0
         self.reload_products()
 
-    def export_excel(self):
-        self.is_exporting_excel = True
-        self.export_cancelled = False
-        self.export_progress = 0
-        self.export_current = "Cargando productos..."
-        yield
-        with rx.session() as session:
-            rows = session.execute(
-                select(Product).where(Product.list_id == self.current_list_id).order_by(Product.created_at)
-            ).scalars().all()
-            rows = list(rows)
-        # Filter by selection if any
-        if self.selected_ids:
-            rows = [r for r in rows if str(r.id) in self.selected_ids]
-        total = len(rows)
-        products = []
-        for i, p in enumerate(rows):
-            ref = p.reference or p.description or f"Product {i+1}"
-            self.export_current = ref[:30]
-            self.export_progress = int((i / max(total, 1)) * 90)
-            yield
-            products.append({
-                "store": p.store or "", "store_contact": p.store_contact or "",
-                "reference": p.reference or "", "description": p.description or "",
-                "measurement": p.measurement or "", "price": p.price,
-                "qty": p.qty, "cbm": p.cbm, "material": p.material or "",
-                "notes": p.notes or "",
-                "image_paths": self._parse_image_paths(p.image_paths or ""),
-            })
-        if self.export_cancelled:
-            self.is_exporting_excel = False; self.export_cancelled = False; return
-        self.export_current = "Construyendo archivo Excel..."
-        self.export_progress = 92
-        yield
-        excel_bytes = export_to_excel(self.current_list_name, self.current_list_desc, products)
-        self.export_progress = 95
-        self.export_current = "Subiendo al servidor..."
-        yield
-        filename = f"{self.current_list_name.replace(' ', '_')}.xlsx"
-        url = upload_export(filename, excel_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        self.is_exporting_excel = False
-        self.export_progress = 100
-        yield rx.call_script(f"window.open('{url}', '_blank') || (window.location.href='{url}')")
 
     def export_zip(self):
         self.is_exporting_zip = True
