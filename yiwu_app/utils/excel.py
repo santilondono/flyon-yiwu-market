@@ -9,10 +9,18 @@ IMAGE_SERVER_URL = os.getenv("IMAGE_SERVER_URL", "").rstrip("/")
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "assets/uploads")
 
 
-def fetch_image_bytes(filepath: str) -> bytes | None:
-    """Fetch image from remote server or local disk."""
+def fetch_image_bytes(filepath: str, preloaded: bytes | None = None) -> bytes | None:
+    """Fetch image - uses preloaded bytes if provided, else local dir, else remote server."""
     if not filepath:
         return None
+    if preloaded:
+        return preloaded
+    images_local_dir = os.getenv("IMAGES_LOCAL_DIR", "").strip()
+    if images_local_dir:
+        import pathlib
+        local = pathlib.Path(images_local_dir) / filepath
+        if local.exists():
+            return local.read_bytes()
     if IMAGE_SERVER_URL:
         try:
             r = httpx.get(f"{IMAGE_SERVER_URL}/images/{filepath}", timeout=10)
@@ -20,11 +28,6 @@ def fetch_image_bytes(filepath: str) -> bytes | None:
                 return r.content
         except Exception:
             pass
-    else:
-        local = os.path.join(UPLOAD_DIR, filepath)
-        if os.path.exists(local):
-            with open(local, "rb") as f:
-                return f.read()
     return None
 
 
@@ -97,15 +100,7 @@ def export_to_excel(list_name: str, description: str, products: list) -> bytes:
             if img_bytes:
                 try:
                     import io as _io
-                    from PIL import Image as PILImage
-                    pil = PILImage.open(_io.BytesIO(img_bytes))
-                    if pil.mode in ("RGBA", "P"):
-                        pil = pil.convert("RGB")
-                    pil.thumbnail((120, 120), PILImage.LANCZOS)
-                    buf = _io.BytesIO()
-                    pil.save(buf, format="JPEG", quality=45, optimize=True)
-                    buf.seek(0)
-                    img = XLImage(buf)
+                    img = XLImage(_io.BytesIO(img_bytes))
                     img.width = 75; img.height = 68
                     ws.add_image(img, f"A{er}")
                 except Exception:

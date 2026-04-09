@@ -5,6 +5,8 @@ import os, base64, io
 from datetime import datetime
 from yiwu_app.models.models import ProductList, Product
 from yiwu_app.models.auth_state import AuthState
+from yiwu_app.utils.excel import export_to_excel
+import pathlib
 from yiwu_app.utils.image_client import (
     get_image_url, upload_image_to_folder, upload_temp_image,
     delete_image, ensure_folder, rename_images_for_reference,
@@ -70,6 +72,14 @@ class ProductState(AuthState):
     # Pagination
     page: int = 0
     page_size: int = 50
+
+    # Export
+    is_exporting: bool = False
+    export_progress: int = 0
+    export_current: str = ""
+    export_cancelled: bool = False
+    export_download_url: str = ""
+    export_download_filename: str = ""
 
 
     def on_load(self):
@@ -539,6 +549,126 @@ class ProductState(AuthState):
         self.confirm_delete_id = 0
         self.reload_products()
 
+
+    def close_export_modal(self):
+        self.is_exporting = False
+        self.export_download_url = ""
+        self.export_download_filename = ""
+        self.export_progress = 0
+        self.export_current = ""
+
+    def cancel_export(self):
+        self.export_cancelled = True
+
+    async def export_excel(self):
+        self.is_exporting = True
+        self.export_cancelled = False
+        self.export_progress = 0
+        self.export_current = "Cargando productos..."
+        yield
+        with rx.session() as session:
+            rows = session.execute(
+                select(Product)
+                .where(Product.list_id == self.current_list_id)
+                .order_by(Product.reference)
+            ).scalars().all()
+            rows = list(rows)
+        total = len(rows)
+        images_local_dir = os.getenv("IMAGES_LOCAL_DIR", "").strip()
+        products = []
+        for i, p in enumerate(rows):
+            if self.export_cancelled:
+                self.is_exporting = False
+                self.export_cancelled = False
+                return
+            ref = p.reference or p.description or f"Producto {i+1}"
+            self.export_current = ref[:30]
+            self.export_progress = int((i / max(total, 1)) * 78)
+            yield
+            img_paths = self._parse_image_paths(p.image_paths or "")
+            img_bytes_list = []
+            for fp in img_paths[:1]:
+                if images_local_dir:
+                    local_path = pathlib.Path(images_local_dir) / fp
+                    if local_path.exists():
+                        img_bytes_list.append(local_path.read_bytes())
+                else:
+                    try:
+                        import httpx as _hx
+                        r = _hx.get(
+                            f"{IMAGE_SERVER_URL}/images/{fp}",
+                            headers={"x-api-key": os.getenv("IMAGE_SERVER_API_KEY", "")},
+                            timeout=10,
+                        )
+                        if r.status_code == 200:
+                            img_bytes_list.append(r.content)
+                    except Exception:
+                        pass
+            products.append({
+                "store": p.store or "",
+                "store_contact": p.store_contact or "",
+                "reference": p.reference or "",
+                "description": p.description or "",
+                "measurement": p.measurement or "",
+                "price": p.price,
+                "qty": p.qty,
+                "cbm": p.cbm,
+                "material": p.material or "",
+                "notes": p.notes or "",
+                "image_paths": img_paths,
+                "_img_bytes": img_bytes_list,
+            })
+        self.export_current = "Generando Excel..."
+        self.export_progress = 85
+        yield
+        excel_bytes = export_to_excel(
+            self.current_list_name,
+            self.current_list_desc,
+            products,
+        )
+        self.export_current = "Guardando archivo..."
+        self.export_progress = 93
+        yield
+        safe_name = "".join(
+            c if c.isalnum() or c in "-_ " else "_"
+            for c in self.current_list_name
+        ).strip().replace(" ", "_")
+        filename = f"{safe_name}.xlsx"
+        if images_local_dir:
+            # PROD: save locally, serve via image server URL
+            exports_dir = pathlib.Path(images_local_dir) / "_exports"
+            exports_dir.mkdir(parents=True, exist_ok=True)
+            existing = sorted(exports_dir.glob("*.xlsx"), key=lambda f: f.stat().st_mtime)
+            for old_f in existing[:-29]:
+                old_f.unlink(missing_ok=True)
+            dest = exports_dir / filename
+            dest.write_bytes(excel_bytes)
+            url = f"{IMAGE_SERVER_URL}/images/_exports/{filename}"
+            self.export_download_url = url
+            self.export_download_filename = filename
+            self.export_current = "¡Listo!"
+            self.export_progress = 100
+            yield rx.call_script(
+                f"const a=document.createElement('a');"
+                f"a.href='{url}';"
+                f"a.download='{filename}';"
+                f"document.body.appendChild(a);a.click();document.body.removeChild(a);"
+            )
+        else:
+            # DEV: base64 inline download
+            import base64
+            b64 = base64.b64encode(excel_bytes).decode()
+            data_url = f"data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}"
+            self.export_download_url = data_url
+            self.export_download_filename = filename
+            self.export_current = "¡Listo!"
+            self.export_progress = 100
+            yield rx.call_script(
+                f"const a=document.createElement('a');"
+                f"a.href='{data_url}';"
+                f"a.download='{filename}';"
+                f"document.body.appendChild(a);a.click();document.body.removeChild(a);"
+            )
 
     def export_zip(self):
         self.is_exporting_zip = True

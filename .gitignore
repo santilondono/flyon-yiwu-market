@@ -19,6 +19,8 @@ env/
 
 # ── Base de datos local ───────────────────────────────────
 *.db
+*.db-shm
+*.db-wal
 *.sqlite3
 
 # ── Imágenes subidas localmente (van al servidor externo) ─
