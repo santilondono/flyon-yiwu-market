@@ -131,6 +131,10 @@ def image_url_thumbnail(url: str, index: int) -> rx.Component:
             object_fit="cover",
             border_radius="8px",
             border=f"1px solid {BORDER}",
+            cursor="pointer",
+            on_click=ProductState.open_lightbox_single(url),
+            _hover=dict(opacity="0.85"),
+            transition="opacity 0.15s",
         ),
         rx.button(
             rx.icon("x", size=11),

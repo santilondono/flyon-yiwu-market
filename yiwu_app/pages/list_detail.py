@@ -54,6 +54,10 @@ def product_row(p: dict) -> rx.Component:
                             width="52px", height="52px",
                             object_fit="cover", border_radius="8px",
                             border=f"1px solid {BORDER}", flex_shrink="0",
+                            cursor="pointer",
+                            on_click=ProductState.open_lightbox(p["image_urls"], 0),
+                            _hover=dict(opacity="0.85", transform="scale(1.04)"),
+                            transition="all 0.15s",
                         ),
                         rx.cond(
                             p["image_count"].to(int) > 1,
@@ -61,6 +65,8 @@ def product_row(p: dict) -> rx.Component:
                                 rx.text("+" + (p["image_count"].to(int) - 1).to_string(),
                                         font_size="11px", font_weight="600", color=ACCENT),
                                 background=ACCENT_D, border_radius="6px", padding="3px 7px", flex_shrink="0",
+                                cursor="pointer",
+                                on_click=ProductState.open_lightbox(p["image_urls"], 0),
                             ),
                         ),
                         align="center", gap="4px",
@@ -220,6 +226,94 @@ def pagination_controls() -> rx.Component:
 
 # ── Main Page ──────────────────────────────────────────────────────────────────
 
+def lightbox_modal() -> rx.Component:
+    """Full-screen image viewer with carousel."""
+    has_prev = ProductState.lightbox_index > 0
+    has_next = ProductState.lightbox_index < ProductState.lightbox_urls.length() - 1
+    return rx.cond(
+        ProductState.show_lightbox,
+        rx.box(
+            # Backdrop — click to close
+            rx.box(
+                position="absolute", top="0", left="0",
+                width="100%", height="100%",
+                on_click=ProductState.close_lightbox,
+            ),
+            # Image
+            rx.image(
+                src=ProductState.lightbox_urls[ProductState.lightbox_index],
+                max_width="90vw", max_height="85vh",
+                object_fit="contain", border_radius="8px",
+                box_shadow="0 8px 40px rgba(0,0,0,0.6)",
+                position="relative", z_index="1",
+            ),
+            # Close button
+            rx.button(
+                rx.icon("x", size=20),
+                on_click=ProductState.close_lightbox,
+                position="fixed", top="16px", right="16px",
+                background="rgba(0,0,0,0.6)", color="white",
+                border="none", border_radius="50%",
+                width="40px", height="40px", padding="0",
+                display="flex", align_items="center", justify_content="center",
+                cursor="pointer", z_index="2",
+                _hover=dict(background="rgba(0,0,0,0.85)"),
+            ),
+            # Prev button
+            rx.cond(
+                has_prev,
+                rx.button(
+                    rx.icon("chevron_left", size=24),
+                    on_click=ProductState.lightbox_prev,
+                    position="fixed", left="16px", top="50%",
+                    transform="translateY(-50%)",
+                    background="rgba(0,0,0,0.55)", color="white",
+                    border="none", border_radius="50%",
+                    width="48px", height="48px", padding="0",
+                    display="flex", align_items="center", justify_content="center",
+                    cursor="pointer", z_index="2",
+                    _hover=dict(background="rgba(0,0,0,0.85)"),
+                ),
+            ),
+            # Next button
+            rx.cond(
+                has_next,
+                rx.button(
+                    rx.icon("chevron_right", size=24),
+                    on_click=ProductState.lightbox_next,
+                    position="fixed", right="16px", top="50%",
+                    transform="translateY(-50%)",
+                    background="rgba(0,0,0,0.55)", color="white",
+                    border="none", border_radius="50%",
+                    width="48px", height="48px", padding="0",
+                    display="flex", align_items="center", justify_content="center",
+                    cursor="pointer", z_index="2",
+                    _hover=dict(background="rgba(0,0,0,0.85)"),
+                ),
+            ),
+            # Counter
+            rx.cond(
+                ProductState.lightbox_urls.length() > 1,
+                rx.text(
+                    (ProductState.lightbox_index + 1).to_string(),
+                    " / ",
+                    ProductState.lightbox_urls.length().to_string(),
+                    position="fixed", bottom="24px", left="50%",
+                    transform="translateX(-50%)",
+                    color="white", font_size="14px", font_family=FONT,
+                    background="rgba(0,0,0,0.55)", padding="4px 14px",
+                    border_radius="20px", z_index="2",
+                ),
+            ),
+            position="fixed", top="0", left="0",
+            width="100vw", height="100vh",
+            background="rgba(0,0,0,0.88)",
+            display="flex", align_items="center", justify_content="center",
+            z_index="500", backdrop_filter="blur(4px)",
+        ),
+    )
+
+
 def export_overlay() -> rx.Component:
     is_done = ProductState.export_progress >= 100
     return rx.cond(
@@ -328,6 +422,7 @@ def list_detail_page() -> rx.Component:
         product_modal(),
         confirm_delete_dialog(),
         export_overlay(),
+        lightbox_modal(),
 
         rx.box(
             # Back button
@@ -391,9 +486,10 @@ def list_detail_page() -> rx.Component:
                 rx.cond(
                     ProductState.products.length() > 0,
                     rx.vstack(
+                        pagination_controls(),
                         rx.vstack(rx.foreach(ProductState.paged_products, product_row), gap="10px", width="100%"),
                         pagination_controls(),
-                        gap="0px", width="100%",
+                        gap="10px", width="100%",
                     ),
                     rx.box(
                         rx.vstack(

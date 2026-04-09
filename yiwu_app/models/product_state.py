@@ -73,6 +73,11 @@ class ProductState(AuthState):
     page: int = 0
     page_size: int = 50
 
+    # Lightbox
+    lightbox_urls: list[str] = []
+    lightbox_index: int = 0
+    show_lightbox: bool = False
+
     # Export
     is_exporting: bool = False
     export_progress: int = 0
@@ -138,6 +143,7 @@ class ProductState(AuthState):
             "image_paths": p.image_paths or "",
             "image_urls": image_urls,
             "first_image_url": image_urls[0] if image_urls else "",
+            "image_urls": image_urls,
             "image_count": len(image_urls),
             "created_at": p.created_at.strftime("%d/%m/%Y %H:%M") if p.created_at else "",
         }
@@ -557,8 +563,36 @@ class ProductState(AuthState):
         self.export_progress = 0
         self.export_current = ""
 
+    def open_lightbox(self, urls: list, index: int = 0):
+        self.lightbox_urls = urls
+        self.lightbox_index = index
+        self.show_lightbox = True
+
+    def close_lightbox(self):
+        self.show_lightbox = False
+        self.lightbox_urls = []
+        self.lightbox_index = 0
+
+    def lightbox_prev(self):
+        if self.lightbox_index > 0:
+                self.lightbox_index -= 1
+
+    def lightbox_next(self):
+        if self.lightbox_index < len(self.lightbox_urls) - 1:
+                self.lightbox_index += 1
+
+    def open_lightbox_single(self, url: str):
+        self.lightbox_urls = [url]
+        self.lightbox_index = 0
+        self.show_lightbox = True
+
     def cancel_export(self):
         self.export_cancelled = True
+        self.is_exporting = False
+        self.export_progress = 0
+        self.export_current = ""
+        self.export_download_url = ""
+        self.export_download_filename = ""
 
     async def export_excel(self):
         self.is_exporting = True
