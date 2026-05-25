@@ -113,7 +113,7 @@ def change_password_modal() -> rx.Component:
                     rx.cond(
                         AdminState.pw_success != "",
                         rx.box(
-                            rx.hstack(rx.icon("check_circle", size=13, color=SUCCESS),
+                            rx.hstack(rx.icon("check_check", size=13, color=SUCCESS),
                                 rx.text(AdminState.pw_success, font_size="13px", color=SUCCESS, font_family=FONT),
                                 align="center", gap="6px"),
                             background=SUCCESS_D, border_radius="8px", padding="9px 12px", width="100%",

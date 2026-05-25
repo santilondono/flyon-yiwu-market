@@ -5,6 +5,7 @@ from yiwu_app.styles.theme import *
 
 
 def list_card(lst: dict) -> rx.Component:
+    """Card for 'Mis listas' — shows edit and (admin-only) delete buttons."""
     return rx.box(
         rx.hstack(
             # Left: name + meta
@@ -43,12 +44,16 @@ def list_card(lst: dict) -> rx.Component:
                         border_radius="7px", padding="5px 9px", cursor="pointer",
                         _hover=dict(color=ACCENT, border_color=ACCENT), transition="all 0.15s",
                     ),
-                    rx.button(
-                        rx.icon("trash_2", size=13),
-                        on_click=ListState.delete_list(lst["id"]),
-                        background="transparent", color=TEXT3, border=f"1px solid {BORDER}",
-                        border_radius="7px", padding="5px 9px", cursor="pointer",
-                        _hover=dict(color=DANGER, border_color=DANGER), transition="all 0.15s",
+                    rx.cond(
+                        ListState.is_admin,
+                        rx.button(
+                            rx.icon("trash_2", size=13),
+                            on_click=ListState.delete_list(lst["id"]),
+                            background="transparent", color=TEXT3, border=f"1px solid {BORDER}",
+                            border_radius="7px", padding="5px 9px", cursor="pointer",
+                            _hover=dict(color=DANGER, border_color=DANGER), transition="all 0.15s",
+                        ),
+                        rx.fragment(),
                     ),
                     gap="6px",
                 ),
@@ -60,6 +65,72 @@ def list_card(lst: dict) -> rx.Component:
         padding="14px 16px", width="100%",
         box_shadow="0 1px 4px rgba(15,31,46,0.05)",
         _hover=dict(border_color=BORDER_L, box_shadow="0 3px 12px rgba(15,31,46,0.09)"),
+        transition="all 0.15s",
+    )
+
+
+def list_card_readonly(lst: dict) -> rx.Component:
+    """Card for 'Todas las listas' — only allows opening the list."""
+    return rx.box(
+        rx.hstack(
+            # Left: name + meta
+            rx.vstack(
+                rx.text(lst["name"], font_size="16px", font_weight="600", color=TEXT, font_family=FONT, no_of_lines=1),
+                rx.cond(
+                    lst["description"] != "",
+                    rx.text(lst["description"], font_size="12px", color=TEXT3, font_family=FONT, no_of_lines=1),
+                ),
+                rx.hstack(
+                    rx.icon("user", size=11, color=TEXT3),
+                    rx.text(lst["owner_name"], font_size="11px", color=TEXT3, font_family=FONT),
+                    align="center", gap="3px",
+                ),
+                rx.hstack(
+                    rx.icon("clock", size=11, color=TEXT3),
+                    rx.text(lst["updated_at"], font_size="11px", color=TEXT3, font_family=FONT),
+                    align="center", gap="3px",
+                ),
+                align="start", gap="4px", flex="1",
+            ),
+            # Center: count badge
+            rx.vstack(
+                rx.text(lst["product_count"], font_size="22px", font_weight="700", color=ACCENT, font_family=FONT),
+                rx.text("items", font_size="11px", color=TEXT3, font_family=FONT),
+                align="center",
+                background=ACCENT_D, border_radius="10px", padding="8px 14px", min_width="62px",
+            ),
+            # Right: open only
+            rx.button(
+                rx.hstack(rx.icon("folder_open", size=14), rx.text("Ver")),
+                on_click=ListState.go_to_list(lst["id"]),
+                **{**btn_primary, "padding": "8px 14px", "font_size": "13px"},
+            ),
+            width="100%", align="center", gap="12px",
+        ),
+        background=BG2, border=f"1px solid {BORDER}", border_radius="12px",
+        padding="14px 16px", width="100%",
+        box_shadow="0 1px 4px rgba(15,31,46,0.05)",
+        _hover=dict(border_color=BORDER_L, box_shadow="0 3px 12px rgba(15,31,46,0.09)"),
+        transition="all 0.15s",
+    )
+
+
+def tab_button(label: str, tab_id: str) -> rx.Component:
+    is_active = ListState.active_tab == tab_id
+    return rx.button(
+        label,
+        on_click=ListState.set_tab(tab_id),
+        font_family=FONT,
+        font_size="14px",
+        font_weight=rx.cond(is_active, "600", "400"),
+        color=rx.cond(is_active, ACCENT, TEXT3),
+        background="transparent",
+        border="none",
+        border_bottom=rx.cond(is_active, f"2px solid {ACCENT}", "2px solid transparent"),
+        border_radius="0",
+        padding="10px 16px",
+        cursor="pointer",
+        _hover=dict(color=ACCENT),
         transition="all 0.15s",
     )
 
@@ -84,14 +155,48 @@ def list_modal() -> rx.Component:
                     width="100%", align="center", margin_bottom="20px",
                 ),
                 rx.vstack(
-                    rx.vstack(
-                        rx.text("List name *", **label_style),
-                        rx.input(
-                            placeholder="e.g. Yiwu Trip Feb 2025",
-                            value=ListState.list_form_name, on_change=ListState.set_list_name,
-                            **input_style,
+                    rx.cond(
+                        ListState.editing_list_id > 0,
+                        rx.vstack(
+                            rx.text("Nombre *", **label_style),
+                            rx.input(
+                                placeholder="e.g. Yiwu Trip Feb 2025",
+                                value=ListState.list_form_name, on_change=ListState.set_list_name,
+                                **input_style,
+                            ),
+                            align="start", width="100%", gap="4px",
                         ),
-                        align="start", width="100%", gap="4px",
+                        rx.vstack(
+                            rx.vstack(
+                                rx.text("Cliente *", **label_style),
+                                rx.input(
+                                    placeholder="Ej: FL",
+                                    value=ListState.new_list_client,
+                                    on_change=ListState.set_new_list_client,
+                                    on_blur=ListState.uppercase_client,
+                                    **input_style,
+                                ),
+                                align="start", width="100%", gap="4px",
+                            ),
+                            rx.vstack(
+                                rx.text("Fecha *", **label_style),
+                                rx.input(
+                                    placeholder="DD/MM/YYYY",
+                                    value=ListState.new_list_date,
+                                    on_change=ListState.set_new_list_date,
+                                    **input_style,
+                                ),
+                                align="start", width="100%", gap="4px",
+                            ),
+                            rx.cond(
+                                ListState.new_list_client != "",
+                                rx.text(
+                                    "Nombre: " + ListState.new_list_name_preview,
+                                    font_size="12px", color=TEXT3, font_family=FONT,
+                                ),
+                            ),
+                            gap="12px", width="100%",
+                        ),
                     ),
                     rx.vstack(
                         rx.text("Descripción (opcional)", **label_style),
@@ -128,6 +233,72 @@ def list_modal() -> rx.Component:
     )
 
 
+def _loading_view() -> rx.Component:
+    return rx.box(
+        rx.vstack(
+            rx.spinner(size="3", color="blue"),
+            rx.text("Cargando listas...", font_size="14px", color=TEXT3, font_family=FONT),
+            align="center", gap="12px",
+        ),
+        display="flex", align_items="center", justify_content="center",
+        padding="60px 24px", width="100%",
+    )
+
+
+def _mis_listas_content() -> rx.Component:
+    return rx.cond(
+        ListState.is_loading_lists,
+        _loading_view(),
+        rx.cond(
+            ListState.lists.length() > 0,
+            rx.vstack(
+                rx.foreach(ListState.lists, list_card),
+                gap="10px", width="100%",
+            ),
+            rx.box(
+                rx.vstack(
+                    rx.icon("package_open", size=44, color=TEXT3),
+                    rx.text("Sin listas aún", font_size="16px", font_weight="600", color=TEXT2, font_family=FONT),
+                    rx.text("Crea tu primera lista para comenzar a catalogar.", font_size="13px", color=TEXT3, font_family=FONT, text_align="center"),
+                    rx.button(
+                        rx.hstack(rx.icon("plus", size=15), rx.text("Crear primera lista")),
+                        on_click=ListState.open_create_modal,
+                        **{**btn_primary, "margin_top": "8px"},
+                    ),
+                    align="center", gap="10px",
+                ),
+                display="flex", align_items="center", justify_content="center",
+                padding="60px 24px",
+                background=BG2, border=f"2px dashed {BORDER}", border_radius="14px", width="100%",
+            ),
+        ),
+    )
+
+
+def _todas_listas_content() -> rx.Component:
+    return rx.cond(
+        ListState.is_loading_lists,
+        _loading_view(),
+        rx.cond(
+            ListState.lists.length() > 0,
+            rx.vstack(
+                rx.foreach(ListState.lists, list_card_readonly),
+                gap="10px", width="100%",
+            ),
+            rx.box(
+                rx.vstack(
+                    rx.icon("package_open", size=44, color=TEXT3),
+                    rx.text("No hay listas disponibles", font_size="16px", font_weight="600", color=TEXT2, font_family=FONT),
+                    align="center", gap="10px",
+                ),
+                display="flex", align_items="center", justify_content="center",
+                padding="60px 24px",
+                background=BG2, border=f"2px dashed {BORDER}", border_radius="14px", width="100%",
+            ),
+        ),
+    )
+
+
 def lists_page() -> rx.Component:
     return rx.box(
         navbar(),
@@ -137,11 +308,11 @@ def lists_page() -> rx.Component:
             # ── Header ─────────────────────────────────────
             rx.hstack(
                 rx.vstack(
-                    rx.text("Mis Listas", font_size="24px", font_weight="700", color=TEXT, font_family=FONT),
+                    rx.text("Listas", font_size="24px", font_weight="700", color=TEXT, font_family=FONT),
                     rx.text(
                         rx.cond(
                             ListState.lists.length() > 0,
-                            ListState.lists.length().to_string() + " lists",
+                            ListState.lists.length().to_string() + " listas",
                             "Sin listas aún",
                         ),
                         font_size="13px", color=TEXT3, font_family=FONT,
@@ -149,63 +320,53 @@ def lists_page() -> rx.Component:
                     align="start", gap="2px",
                 ),
                 rx.spacer(),
-                rx.button(
-                    rx.hstack(rx.icon("plus", size=16), rx.text("Nueva lista")),
-                    on_click=ListState.open_create_modal,
-                    **{**btn_primary, "padding": "9px 16px"},
+                # "Nueva lista" button only in "Mis listas" tab
+                rx.cond(
+                    ListState.active_tab == "mis_listas",
+                    rx.button(
+                        rx.hstack(rx.icon("plus", size=16), rx.text("Nueva lista")),
+                        on_click=ListState.open_create_modal,
+                        **{**btn_primary, "padding": "9px 16px"},
+                    ),
+                    rx.fragment(),
                 ),
                 width="100%", align="center",
             ),
 
-            # ── List ───────────────────────────────────────
-            rx.cond(
-                ListState.is_loading_lists,
-                rx.box(
-                    rx.vstack(
-                        rx.spinner(size="3", color="blue"),
-                        rx.text("Cargando listas...", font_size="14px", color=TEXT3, font_family=FONT),
-                        align="center", gap="12px",
-                    ),
-                    display="flex", align_items="center", justify_content="center",
-                    padding="60px 24px", width="100%",
+            # ── Tabs ───────────────────────────────────────
+            rx.box(
+                rx.hstack(
+                    tab_button("Mis listas", "mis_listas"),
+                    tab_button("Todas las listas", "todas"),
+                    gap="0", spacing="0",
                 ),
-                rx.cond(
-                    ListState.lists.length() > 0,
-                    rx.vstack(
-                        rx.foreach(ListState.lists, list_card),
-                        gap="10px", width="100%",
-                    ),
-                    rx.box(
-                        rx.vstack(
-                            rx.icon("package_open", size=44, color=TEXT3),
-                            rx.text("Sin listas aún", font_size="16px", font_weight="600", color=TEXT2, font_family=FONT),
-                            rx.text("Crea tu primera lista para comenzar a catalogar.", font_size="13px", color=TEXT3, font_family=FONT, text_align="center"),
-                            rx.button(
-                                rx.hstack(rx.icon("plus", size=15), rx.text("Crear primera lista")),
-                                on_click=ListState.open_create_modal,
-                                **{**btn_primary, "margin_top": "8px"},
-                            ),
-                            align="center", gap="10px",
-                        ),
-                        display="flex", align_items="center", justify_content="center",
-                        padding="60px 24px",
-                        background=BG2, border=f"2px dashed {BORDER}", border_radius="14px", width="100%",
-                    ),
-                ),
+                border_bottom=f"1px solid {BORDER}",
+                width="100%",
             ),
 
-            # FAB
-            rx.button(
-                rx.icon("plus", size=22),
-                on_click=ListState.open_create_modal,
-                position="fixed", bottom="24px", right="20px",
-                width="52px", height="52px",
-                background=ACCENT, color="white", border="none",
-                border_radius="50%", cursor="pointer",
-                box_shadow="0 4px 16px rgba(29,111,184,0.4)",
-                display="flex", align_items="center", justify_content="center",
-                _hover=dict(background=ACCENT_H, transform="scale(1.05)"),
-                transition="all 0.15s", z_index="50",
+            # ── Tab content ────────────────────────────────
+            rx.cond(
+                ListState.active_tab == "mis_listas",
+                _mis_listas_content(),
+                _todas_listas_content(),
+            ),
+
+            # FAB — only in "Mis listas" tab
+            rx.cond(
+                ListState.active_tab == "mis_listas",
+                rx.button(
+                    rx.icon("plus", size=22),
+                    on_click=ListState.open_create_modal,
+                    position="fixed", bottom="24px", right="20px",
+                    width="52px", height="52px",
+                    background=ACCENT, color="white", border="none",
+                    border_radius="50%", cursor="pointer",
+                    box_shadow="0 4px 16px rgba(29,111,184,0.4)",
+                    display="flex", align_items="center", justify_content="center",
+                    _hover=dict(background=ACCENT_H, transform="scale(1.05)"),
+                    transition="all 0.15s", z_index="50",
+                ),
+                rx.fragment(),
             ),
 
             max_width="800px", margin="0 auto",

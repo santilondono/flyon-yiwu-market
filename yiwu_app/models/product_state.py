@@ -36,7 +36,12 @@ class ProductState(AuthState):
     current_list_name: str = ""
     current_list_desc: str = ""
     current_list_folder: str = ""
+    current_list_owner_id: int = 0
     products: list[dict] = []
+
+    @rx.var
+    def is_own_list(self) -> bool:
+        return self.current_list_owner_id == self.user_id and self.user_id > 0
 
     show_product_modal: bool = False
     editing_product_id: int = 0
@@ -103,12 +108,13 @@ class ProductState(AuthState):
         self.is_loading_products = True
         with rx.session() as session:
             lst = session.get(ProductList, lid)
-            if not lst or lst.owner_id != self.user_id:
+            if not lst:
                 return
             self.current_list_id = lst.id
             self.current_list_name = lst.name
             self.current_list_desc = lst.description or ""
             self.current_list_folder = lst.folder_name or ""
+            self.current_list_owner_id = lst.owner_id
             rows = session.execute(
                 select(Product).where(Product.list_id == lid).order_by(Product.created_at)
             ).scalars().all()
