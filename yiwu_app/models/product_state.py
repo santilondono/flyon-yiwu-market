@@ -455,20 +455,20 @@ class ProductState(AuthState):
                 ext = pathlib.Path(fp).suffix or ".jpg"
                 new_filename = f"{safe_ref}{ext}" if new_index == 1 else f"{safe_ref}_{new_index - 1}{ext}"
                 new_filepath = f"{folder}/{new_filename}"
+                # Un solo intento con timeout corto: el /rename es una comodidad
+                # (nombre legible del archivo), no puede bloquear el guardado.
+                # Si falla, se persiste el nombre temporal tal cual — funciona igual.
                 renamed_ok = False
-                for _attempt in range(3):
-                    try:
-                        r = _httpx.post(
-                            f"{IMAGE_SERVER_URL}/rename",
-                            json={"old_path": fp, "new_path": new_filepath},
-                            headers=_headers(),
-                            timeout=15,
-                        )
-                        if r.status_code in (200, 404):
-                            renamed_ok = True
-                            break
-                    except Exception:
-                        pass
+                try:
+                    r = _httpx.post(
+                        f"{IMAGE_SERVER_URL}/rename",
+                        json={"old_path": fp, "new_path": new_filepath},
+                        headers=_headers(),
+                        timeout=5,
+                    )
+                    renamed_ok = r.status_code in (200, 404)
+                except Exception:
+                    pass
                 final_paths.append(new_filepath if renamed_ok else fp)
             else:
                 final_paths.append(fp)
@@ -627,7 +627,7 @@ class ProductState(AuthState):
             yield
             img_paths = self._parse_image_paths(p.image_paths or "")
             img_bytes_list = []
-            for fp in img_paths[:1]:
+            for fp in img_paths:
                 if images_local_dir:
                     local_path = pathlib.Path(images_local_dir) / fp
                     if local_path.exists():

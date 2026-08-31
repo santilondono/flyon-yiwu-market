@@ -2,8 +2,12 @@ import io, os
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.drawing.image import Image as XLImage
+from openpyxl.drawing.spreadsheet_drawing import AnchorMarker, OneCellAnchor
+from openpyxl.drawing.xdr import XDRPositiveSize2D
 from openpyxl.utils import get_column_letter
 import httpx
+
+_EMU_PER_PX = 9144
 
 IMAGE_SERVER_URL = os.getenv("IMAGE_SERVER_URL", "").rstrip("/")
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "assets/uploads")
@@ -87,24 +91,37 @@ def export_to_excel(list_name: str, description: str, products: list) -> bytes:
     for ri, p in enumerate(products, 1):
         er = HDR + ri
         fill = ALT if ri % 2 else WHITE
-        ws.row_dimensions[er].height = 72
-
-        # First photo only in column A
         image_paths = p.get("image_paths", [])
         if isinstance(image_paths, str):
             image_paths = [x.strip() for x in image_paths.split(",") if x.strip()]
 
-        first_path = image_paths[0] if image_paths else None
-        if first_path:
-            img_bytes = fetch_image_bytes(first_path)
-            if img_bytes:
+        n_images = len(image_paths)
+        ws.row_dimensions[er].height = 75 * n_images if n_images else 72
+
+        preloaded_bytes = p.get("_img_bytes", [])
+        any_img_inserted = False
+        for idx, fp in enumerate(image_paths):
+            preloaded = preloaded_bytes[idx] if idx < len(preloaded_bytes) else None
+            img_data = fetch_image_bytes(fp, preloaded)
+            if img_data:
                 try:
-                    import io as _io
-                    img = XLImage(_io.BytesIO(img_bytes))
-                    img.width = 75; img.height = 68
-                    ws.add_image(img, f"A{er}")
+                    img = XLImage(io.BytesIO(img_data))
+                    img.width = 75
+                    img.height = 68
+                    marker = AnchorMarker(
+                        col=0, colOff=0,
+                        row=er - 1, rowOff=idx * 68 * _EMU_PER_PX,
+                    )
+                    img.anchor = OneCellAnchor(
+                        _from=marker,
+                        ext=XDRPositiveSize2D(75 * _EMU_PER_PX, 68 * _EMU_PER_PX),
+                    )
+                    ws.add_image(img)
+                    any_img_inserted = True
                 except Exception:
-                    ws.cell(row=er, column=1, value="[img]")
+                    pass
+        if not any_img_inserted and not image_paths:
+            pass  # leave cell empty
         ws.cell(row=er, column=1).fill = fill
         ws.cell(row=er, column=1).border = BORD
 

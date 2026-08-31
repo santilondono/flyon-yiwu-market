@@ -200,7 +200,8 @@ window.__uploadInit = function() {{
                 if (r.ok) {{
                     const data = await r.json();
                     const fp = data.filepath || (folder + '/' + tmpName);
-                    const pu = '{SERVER}/images/' + fp;
+                    // Preview local desde el blob ya en memoria — no se descarga de la red.
+                    const pu = URL.createObjectURL(blob);
                     const bridge = document.getElementById('_img_bridge');
                     if (bridge) {{
                         const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
