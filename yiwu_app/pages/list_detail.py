@@ -220,7 +220,7 @@ def pagination_controls() -> rx.Component:
             rx.text(
                 ProductState.page_start.to_string(), " – ",
                 ProductState.page_end.to_string(), " de ",
-                ProductState.products.length().to_string(), " productos",
+                ProductState.filtered_count.to_string(), " productos",
                 font_size="12px", color=TEXT3, font_family=FONT,
             ),
             gap="8px", align="center", width="100%", padding_top="12px",
@@ -314,6 +314,104 @@ def lightbox_modal() -> rx.Component:
             background="rgba(0,0,0,0.88)",
             display="flex", align_items="center", justify_content="center",
             z_index="500", backdrop_filter="blur(4px)",
+        ),
+    )
+
+
+def export_range_modal() -> rx.Component:
+    """Selección de rango de productos antes de exportar a Excel."""
+    return rx.cond(
+        ProductState.show_export_range_modal,
+        rx.box(
+            rx.box(
+                rx.vstack(
+                    rx.hstack(
+                        rx.text("Seleccionar rango a exportar", font_size="17px",
+                                font_weight="700", color=TEXT, font_family=FONT),
+                        rx.spacer(),
+                        rx.button(
+                            rx.icon("x", size=18),
+                            on_click=ProductState.close_export_range_modal,
+                            background="transparent", color=TEXT3, border="none",
+                            cursor="pointer", padding="4px", border_radius="6px",
+                            _hover=dict(color=TEXT, background=BG3),
+                        ),
+                        width="100%", align="center",
+                    ),
+                    rx.box(
+                        rx.foreach(
+                            ProductState.products_numbered,
+                            lambda p: rx.hstack(
+                                rx.text(p["num"].to_string() + ".", font_size="12px",
+                                        color=TEXT3, width="32px", flex_shrink="0", font_family=FONT),
+                                rx.text(p["reference"], font_size="13px", font_weight="500",
+                                        color=TEXT, font_family=FONT, flex_shrink="0"),
+                                rx.text(p["description"], font_size="12px", color=TEXT3,
+                                        font_family=FONT, no_of_lines=1, flex="1"),
+                                width="100%", align="center", gap="8px", padding="4px 0",
+                            ),
+                        ),
+                        max_height="40vh", overflow_y="auto", width="100%",
+                        border=f"1px solid {BORDER}", border_radius="10px",
+                        padding="8px 12px", background=BG3,
+                    ),
+                    rx.hstack(
+                        rx.vstack(
+                            rx.text("Desde #", **label_style),
+                            rx.input(
+                                value=ProductState.export_range_start,
+                                on_change=ProductState.set_export_range_start,
+                                type="number", min="1",
+                                background=BG2, border=f"1px solid {BORDER}", border_radius="10px",
+                                color=TEXT, font_family=FONT, font_size="14px",
+                                height="42px", width="100px",
+                                _focus=dict(border_color=ACCENT, outline="none"),
+                            ),
+                            align="start", gap="4px",
+                        ),
+                        rx.vstack(
+                            rx.text("Hasta #", **label_style),
+                            rx.input(
+                                value=ProductState.export_range_end,
+                                on_change=ProductState.set_export_range_end,
+                                type="number",
+                                background=BG2, border=f"1px solid {BORDER}", border_radius="10px",
+                                color=TEXT, font_family=FONT, font_size="14px",
+                                height="42px", width="100px",
+                                _focus=dict(border_color=ACCENT, outline="none"),
+                            ),
+                            align="start", gap="4px",
+                        ),
+                        gap="12px", align="end",
+                    ),
+                    rx.text(ProductState.export_range_preview, font_size="13px",
+                            font_weight="600", color=ACCENT, font_family=FONT),
+                    rx.hstack(
+                        rx.button("Cancelar", on_click=ProductState.close_export_range_modal, **btn_ghost),
+                        rx.button(
+                            rx.hstack(rx.icon("download", size=15), rx.text("Exportar")),
+                            on_click=ProductState.export_excel,
+                            background=SUCCESS, color="white", border="none",
+                            border_radius="10px", padding="10px 20px",
+                            font_family=FONT, font_size="14px", font_weight="500",
+                            cursor="pointer", display="inline-flex", align_items="center", gap="8px",
+                            _hover=dict(background="#0a6040"),
+                        ),
+                        justify="end", gap="10px", width="100%",
+                    ),
+                    align="start", gap="14px", width="100%",
+                ),
+                background=BG2, border=f"1px solid {BORDER}",
+                border_radius="16px", padding="28px 32px",
+                width="min(480px, 94vw)",
+                position="relative", z_index="403",
+                box_shadow="0 8px 40px rgba(15,31,46,0.20)",
+            ),
+            position="fixed", top="0", left="0",
+            width="100vw", height="100vh",
+            background="rgba(15,31,46,0.55)",
+            display="flex", align_items="center", justify_content="center",
+            z_index="402", backdrop_filter="blur(4px)",
         ),
     )
 
@@ -425,6 +523,7 @@ def list_detail_page() -> rx.Component:
         navbar(),
         product_modal(),
         confirm_delete_dialog(),
+        export_range_modal(),
         export_overlay(),
         lightbox_modal(),
 
@@ -447,16 +546,44 @@ def list_detail_page() -> rx.Component:
             ),
             # Action bar
             rx.hstack(
-                rx.hstack(
-                    rx.text(ProductState.products.length().to_string(), font_size="14px", font_weight="600", color=ACCENT),
-                    rx.text(" productos", font_size="14px", color=TEXT3),
-                    align="center",
+                rx.cond(
+                    ProductState.search_active & (ProductState.search_query != ""),
+                    rx.hstack(
+                        rx.text(ProductState.filtered_count.to_string(), font_size="14px", font_weight="600", color=ACCENT),
+                        rx.text(" resultados de ", font_size="14px", color=TEXT3),
+                        rx.text(ProductState.products.length().to_string(), font_size="14px", color=TEXT3),
+                        rx.text(" productos", font_size="14px", color=TEXT3),
+                        align="center",
+                    ),
+                    rx.hstack(
+                        rx.text(ProductState.products.length().to_string(), font_size="14px", font_weight="600", color=ACCENT),
+                        rx.text(" productos", font_size="14px", color=TEXT3),
+                        align="center",
+                    ),
                 ),
                 rx.spacer(),
 
                 rx.button(
+                    rx.icon("search", size=16),
+                    on_click=ProductState.toggle_search,
+                    background=rx.cond(ProductState.search_active, ACCENT_D, "transparent"),
+                    color=rx.cond(ProductState.search_active, ACCENT, TEXT2),
+                    border=rx.cond(
+                        ProductState.search_active,
+                        f"1px solid {ACCENT}",
+                        f"1px solid {BORDER}",
+                    ),
+                    border_radius="10px",
+                    padding="8px 12px", font_family=FONT, font_size="13px",
+                    font_weight="500", cursor="pointer",
+                    display="inline-flex", align_items="center",
+                    _hover=dict(border_color=ACCENT, color=ACCENT),
+                    transition="all 0.15s",
+                ),
+
+                rx.button(
                     rx.hstack(rx.icon("download", size=14), rx.text("Excel")),
-                    on_click=ProductState.export_excel,
+                    on_click=ProductState.open_export_range_modal,
                     disabled=ProductState.is_exporting,
                     background=SUCCESS_D, color=SUCCESS,
                     border=f"1px solid {SUCCESS}", border_radius="10px",
@@ -477,6 +604,37 @@ def list_detail_page() -> rx.Component:
                     rx.fragment(),
                 ),
                 width="100%", align="center", gap="8px",
+            ),
+
+            # Search input
+            rx.cond(
+                ProductState.search_active,
+                rx.hstack(
+                    rx.input(
+                        placeholder="Buscar por referencia o tienda...",
+                        value=ProductState.search_query,
+                        on_change=ProductState.set_search,
+                        auto_focus=True,
+                        background=BG2, border=f"1px solid {BORDER}", border_radius="10px",
+                        color=TEXT, font_family=FONT, font_size="14px",
+                        padding="10px 14px", height="42px", width="100%",
+                        _focus=dict(border_color=ACCENT, box_shadow=f"0 0 0 3px {ACCENT_D}", outline="none"),
+                        _placeholder=dict(color=TEXT3),
+                    ),
+                    rx.cond(
+                        ProductState.search_query != "",
+                        rx.button(
+                            rx.icon("x", size=15),
+                            on_click=ProductState.clear_search,
+                            background="transparent", color=TEXT3,
+                            border=f"1px solid {BORDER}", border_radius="10px",
+                            padding="9px 11px", cursor="pointer",
+                            _hover=dict(color=DANGER, border_color=DANGER),
+                            transition="all 0.15s", flex_shrink="0",
+                        ),
+                    ),
+                    width="100%", align="center", gap="8px",
+                ),
             ),
 
             # Loading / Products / Empty

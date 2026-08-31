@@ -43,6 +43,23 @@ class ProductState(AuthState):
     def is_own_list(self) -> bool:
         return self.current_list_owner_id == self.user_id and self.user_id > 0
 
+    @rx.var
+    def export_range_preview(self) -> str:
+        """Muestra cuántos productos se exportarán según el rango."""
+        total = len(self.products)
+        try:
+            start = max(1, int(self.export_range_start)) - 1
+            end = min(total, int(self.export_range_end))
+            count = max(0, end - start)
+            return f"{count} productos (#{start+1} al #{end})"
+        except Exception:
+            return ""
+
+    @rx.var
+    def products_numbered(self) -> list[dict]:
+        return [{"num": i + 1, "reference": p["reference"], "description": p["description"]}
+                for i, p in enumerate(self.products)]
+
     show_product_modal: bool = False
     editing_product_id: int = 0
 
@@ -78,6 +95,10 @@ class ProductState(AuthState):
     page: int = 0
     page_size: int = 50
 
+    # Search
+    search_query: str = ""
+    search_active: bool = False
+
     # Lightbox
     lightbox_urls: list[str] = []
     lightbox_index: int = 0
@@ -90,6 +111,11 @@ class ProductState(AuthState):
     export_cancelled: bool = False
     export_download_url: str = ""
     export_download_filename: str = ""
+
+    # Export range selection
+    show_export_range_modal: bool = False
+    export_range_start: str = "1"
+    export_range_end: str = ""  # se llena con el total al abrir el modal
 
 
     def on_load(self):
@@ -106,6 +132,8 @@ class ProductState(AuthState):
 
     def _load_list_data(self, lid: int):
         self.is_loading_products = True
+        self.search_query = ""
+        self.search_active = False
         with rx.session() as session:
             lst = session.get(ProductList, lid)
             if not lst:
@@ -309,11 +337,30 @@ class ProductState(AuthState):
         self.page = p
         self._refresh_page()
 
+    # ── Search ────────────────────────────────────────────
+    def set_search(self, v: str):
+        self.search_query = v.strip().upper()
+        self.page = 0
+        self._refresh_page()
+
+    def clear_search(self):
+        self.search_query = ""
+        self.search_active = False
+        self.page = 0
+        self._refresh_page()
+
+    def toggle_search(self):
+        if self.search_active:
+            self.clear_search()
+        else:
+            self.search_active = True
+
     # paged_products is a plain state var updated by _refresh_page()
     paged_products: list[dict] = []
     total_pages: int = 1
     page_start: int = 1
     page_end: int = 0
+    filtered_count: int = 0
 
     @rx.var
     def visible_pages(self) -> list[int]:
@@ -331,11 +378,20 @@ class ProductState(AuthState):
         return sorted(pages)
 
     def _refresh_page(self):
-        """Recompute paged_products from current page."""
+        """Recompute paged_products from current page (respecting the search filter)."""
+        q = self.search_query
+        if q:
+            source = [
+                p for p in self.products
+                if q in p["reference"].upper() or q in p["store"].upper()
+            ]
+        else:
+            source = self.products
+        self.filtered_count = len(source)
         start = self.page * self.page_size
         end = start + self.page_size
-        self.paged_products = self.products[start:end]
-        total = len(self.products)
+        self.paged_products = source[start:end]
+        total = len(source)
         self.total_pages = max(1, (total + self.page_size - 1) // self.page_size)
         self.page_start = start + 1
         self.page_end = min(end, total)
@@ -569,6 +625,20 @@ class ProductState(AuthState):
         self.export_progress = 0
         self.export_current = ""
 
+    def open_export_range_modal(self):
+        self.export_range_start = "1"
+        self.export_range_end = str(len(self.products))
+        self.show_export_range_modal = True
+
+    def close_export_range_modal(self):
+        self.show_export_range_modal = False
+
+    def set_export_range_start(self, v: str):
+        self.export_range_start = v
+
+    def set_export_range_end(self, v: str):
+        self.export_range_end = v
+
     def open_lightbox(self, urls: list, index: int = 0):
         self.lightbox_urls = urls
         self.lightbox_index = index
@@ -601,6 +671,7 @@ class ProductState(AuthState):
         self.export_download_filename = ""
 
     async def export_excel(self):
+        self.show_export_range_modal = False
         self.is_exporting = True
         self.export_cancelled = False
         self.export_progress = 0
@@ -610,9 +681,17 @@ class ProductState(AuthState):
             rows = session.execute(
                 select(Product)
                 .where(Product.list_id == self.current_list_id)
-                .order_by(Product.reference)
+                .order_by(Product.created_at)
             ).scalars().all()
             rows = list(rows)
+        # Aplicar el rango elegido en el modal (1-based, inclusivo).
+        # Mismo orden que self.products / products_numbered para que los números coincidan.
+        try:
+            start = max(1, int(self.export_range_start)) - 1
+            end = min(len(rows), int(self.export_range_end))
+            rows = rows[start:end]
+        except Exception:
+            pass  # si el rango es inválido, exportar todos
         total = len(rows)
         images_local_dir = os.getenv("IMAGES_LOCAL_DIR", "").strip()
         products = []
