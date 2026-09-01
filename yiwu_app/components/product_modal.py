@@ -43,6 +43,7 @@ def num_input(placeholder: str, value, on_change, step="0.01") -> rx.Component:
         on_key_up=rx.call_script("event.target.value = event.target.value.replace(/,/g, '.')"),
         type="text",
         input_mode="decimal",
+        pattern="[0-9]*[.,]?[0-9]*",
         background=BG2, border=f"1px solid {BORDER}", border_radius="10px",
         color=TEXT, font_family=FONT, font_size="15px",
         padding="12px 14px", height="46px", width="100%",

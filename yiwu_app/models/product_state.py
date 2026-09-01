@@ -467,6 +467,15 @@ class ProductState(AuthState):
         self.is_uploading_image = False
         yield rx.call_script("document.getElementById('upload-spinner').style.display='none';")
 
+    def _parse_decimal(self, value: str) -> float | None:
+        """Convierte string a float aceptando tanto punto como coma como separador decimal."""
+        if not value:
+            return None
+        try:
+            return float(str(value).replace(",", ".").strip())
+        except (ValueError, TypeError):
+            return None
+
     def save_product(self):
         if not self.pf_reference.strip():
             self.product_error = "La referencia es obligatoria."
@@ -532,13 +541,10 @@ class ProductState(AuthState):
 
         image_paths_str = ",".join(final_paths)
 
-        def to_float(v):
-            try: return float(v) if v and str(v).strip() else None
-            except: return None
-
-        def to_int(v):
-            try: return int(v) if v and str(v).strip() else None
-            except: return None
+        price_val = self._parse_decimal(self.pf_price)
+        cbm_val = self._parse_decimal(self.pf_cbm)
+        _qty = self._parse_decimal(self.pf_qty)
+        qty_val = int(_qty) if _qty is not None else None
 
         try:
             with rx.session() as session:
@@ -565,9 +571,9 @@ class ProductState(AuthState):
                         p.reference = self.pf_reference.strip()
                         p.description = self.pf_description.strip()
                         p.measurement = self._measurement_to_str()
-                        p.price = to_float(self.pf_price)
-                        p.qty = to_int(self.pf_qty)
-                        p.cbm = to_float(self.pf_cbm)
+                        p.price = price_val
+                        p.qty = qty_val
+                        p.cbm = cbm_val
                         p.material = self.pf_material.strip()
                         p.notes = self.pf_notes.strip()
                         p.image_paths = image_paths_str
@@ -580,9 +586,9 @@ class ProductState(AuthState):
                         reference=self.pf_reference.strip(),
                         description=self.pf_description.strip(),
                         measurement=self._measurement_to_str(),
-                        price=to_float(self.pf_price),
-                        qty=to_int(self.pf_qty),
-                        cbm=to_float(self.pf_cbm),
+                        price=price_val,
+                        qty=qty_val,
+                        cbm=cbm_val,
                         material=self.pf_material.strip(),
                         notes=self.pf_notes.strip(),
                         image_paths=image_paths_str,
