@@ -56,12 +56,19 @@ class ListState(AuthState):
 
     def _do_load_all_lists(self):
         with rx.session() as session:
-            rows = session.execute(
+            stmt = (
                 select(ProductList, User)
                 .join(User, ProductList.owner_id == User.id)
-                .where(ProductList.owner_id != self.user_id)
                 .order_by(ProductList.updated_at.desc())
-            ).all()
+            )
+            # El admin ve todas las listas (incluidas las suyas). El resto de
+            # usuarios no ven las listas cuyo owner sea admin, ni las propias.
+            if not self.is_admin:
+                stmt = stmt.where(
+                    ProductList.owner_id != self.user_id,
+                    User.is_admin == False,  # noqa: E712
+                )
+            rows = session.execute(stmt).all()
             self.lists = [
                 {
                     "id": r.id,
