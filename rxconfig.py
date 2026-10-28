@@ -12,4 +12,5 @@ config = rx.Config(
     title="Flyon Yiwu Market",
     frontend_port=3000,
     backend_port=8000,
+    show_built_with_reflex=False,
 )
