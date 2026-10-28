@@ -12,6 +12,8 @@ from yiwu_app.models.auth_state import AuthState
 from yiwu_app.models.list_state import ListState
 from yiwu_app.models.product_state import ProductState
 from yiwu_app.models.admin_state import AdminState
+from yiwu_app.pages.ref_search import ref_search_page
+from yiwu_app.models.ref_search_state import RefSearchState
 
 GOOGLE_FONTS = "https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=DM+Mono:wght@400;500&display=swap"
 
@@ -52,3 +54,8 @@ def list_detail() -> rx.Component:
 @rx.page(route="/admin", title="Flyon Yiwu Market | Admin", on_load=AdminState.on_load)
 def admin() -> rx.Component:
     return admin_page()
+
+
+@rx.page(route="/buscar", title="Flyon Yiwu Market | Buscar referencia", on_load=RefSearchState.on_load)
+def ref_search() -> rx.Component:
+    return ref_search_page()

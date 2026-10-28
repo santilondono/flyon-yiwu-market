@@ -23,6 +23,17 @@ def navbar() -> rx.Component:
             rx.cond(
                 AuthState.is_authenticated,
                 rx.hstack(
+                    rx.button(
+                        rx.icon("search", size=15),
+                        rx.text("Buscar", display=["none", "none", "inline"], font_size="13px"),
+                        on_click=rx.redirect("/buscar"),
+                        background="transparent", color=TEXT3,
+                        border=f"1px solid {BORDER}",
+                        border_radius="8px", padding="7px 10px",
+                        cursor="pointer", gap="6px",
+                        _hover=dict(color=ACCENT, border_color=ACCENT), transition="all 0.15s",
+                        title="Buscar referencia",
+                    ),
                     # Name hidden on small screens
                     rx.text(AuthState.user_name, font_size="13px", font_weight="500",
                             color=TEXT2, font_family=FONT,
