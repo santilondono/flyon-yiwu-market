@@ -4,28 +4,26 @@ from yiwu_app.components.navbar import navbar
 from yiwu_app.styles.theme import *
 
 
-def _search_input(value, on_change, on_clear, placeholder: str, icon: str,
+def _search_input(input_id: str, value, on_change, on_clear, placeholder: str, icon: str,
                   large: bool, auto_focus: bool = False) -> rx.Component:
     height = "52px" if large else "40px"
     return rx.box(
         rx.icon(icon, size=18 if large else 15, color=TEXT3,
                 position="absolute", left="14px", top="50%",
                 transform="translateY(-50%)", pointer_events="none", z_index="1"),
-        rx.debounce_input(
-            rx.input(
-                value=value,
-                on_change=on_change,
-                placeholder=placeholder,
-                auto_focus=auto_focus,
-                auto_complete=False,
-                **{
-                    **input_style,
-                    "height": height,
-                    "font_size": "17px" if large else "14px",
-                    "padding": "0 40px 0 40px" if large else "0 36px 0 36px",
-                },
-            ),
-            debounce_timeout=300,
+        rx.input(
+            id=input_id,
+            default_value=value,
+            on_change=on_change.debounce(350),
+            placeholder=placeholder,
+            auto_focus=auto_focus,
+            auto_complete=False,
+            **{
+                **input_style,
+                "height": height,
+                "font_size": "17px" if large else "14px",
+                "padding": "0 40px 0 40px" if large else "0 36px 0 36px",
+            },
         ),
         rx.cond(
             value != "",
@@ -214,13 +212,13 @@ def ref_search_page() -> rx.Component:
         rx.box(
             rx.vstack(
                 _search_input(
-                    RefSearchState.query, RefSearchState.set_query,
+                    "ref-q", RefSearchState.query, RefSearchState.set_query,
                     RefSearchState.clear_query,
                     "Referencia o descripción", "search", large=True, auto_focus=True,
                 ),
                 rx.box(
                     _search_input(
-                        RefSearchState.store_filter, RefSearchState.set_store_filter,
+                        "ref-store", RefSearchState.store_filter, RefSearchState.set_store_filter,
                         RefSearchState.clear_store_filter,
                         "Filtrar por tienda", "store", large=False,
                     ),

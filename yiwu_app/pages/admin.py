@@ -20,20 +20,20 @@ def create_user_modal() -> rx.Component:
                 rx.vstack(
                     rx.vstack(
                         rx.text("Nombre completo", **label_style),
-                        rx.input(placeholder="e.g. Juan García", value=AdminState.new_name,
-                                 on_change=AdminState.set_new_name, **input_style),
+                        rx.input(placeholder="e.g. Juan García", default_value=AdminState.new_name,
+                                 on_blur=AdminState.set_new_name, **input_style),
                         align="start", width="100%", gap="4px",
                     ),
                     rx.vstack(
                         rx.text("Username / Email", **label_style),
-                        rx.input(placeholder="e.g. juan.garcia", value=AdminState.new_email,
-                                 on_change=AdminState.set_new_email, **input_style),
+                        rx.input(placeholder="e.g. juan.garcia", default_value=AdminState.new_email,
+                                 on_blur=AdminState.set_new_email, **input_style),
                         align="start", width="100%", gap="4px",
                     ),
                     rx.vstack(
                         rx.text("Contraseña", **label_style),
-                        rx.input(placeholder="Min. 6 characters", value=AdminState.new_password,
-                                 on_change=AdminState.set_new_password, type="password", **input_style),
+                        rx.input(placeholder="Min. 6 characters", default_value=AdminState.new_password,
+                                 on_blur=AdminState.set_new_password, type="password", **input_style),
                         align="start", width="100%", gap="4px",
                     ),
                     rx.cond(
@@ -85,20 +85,20 @@ def change_password_modal() -> rx.Component:
                 rx.vstack(
                     rx.vstack(
                         rx.text("Current password", **label_style),
-                        rx.input(placeholder="••••••••", value=AdminState.pw_current,
-                                 on_change=AdminState.set_pw_current, type="password", **input_style),
+                        rx.input(placeholder="••••••••", default_value=AdminState.pw_current,
+                                 on_blur=AdminState.set_pw_current, type="password", **input_style),
                         align="start", width="100%", gap="4px",
                     ),
                     rx.vstack(
                         rx.text("Nueva contraseña", **label_style),
-                        rx.input(placeholder="Min. 6 characters", value=AdminState.pw_new,
-                                 on_change=AdminState.set_pw_new, type="password", **input_style),
+                        rx.input(placeholder="Min. 6 characters", default_value=AdminState.pw_new,
+                                 on_blur=AdminState.set_pw_new, type="password", **input_style),
                         align="start", width="100%", gap="4px",
                     ),
                     rx.vstack(
                         rx.text("Confirm new password", **label_style),
-                        rx.input(placeholder="Repeat new password", value=AdminState.pw_confirm,
-                                 on_change=AdminState.set_pw_confirm, type="password", **input_style),
+                        rx.input(placeholder="Repeat new password", default_value=AdminState.pw_confirm,
+                                 on_blur=AdminState.set_pw_confirm, type="password", **input_style),
                         align="start", width="100%", gap="4px",
                     ),
                     rx.cond(
@@ -128,6 +128,7 @@ def change_password_modal() -> rx.Component:
                         justify="end", gap="10px", width="100%",
                     ),
                     gap="16px", width="100%",
+                    key=AdminState.form_key,
                 ),
                 **card, width="min(420px, 94vw)", position="relative", z_index="201",
             ),

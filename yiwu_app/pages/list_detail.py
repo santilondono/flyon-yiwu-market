@@ -359,8 +359,8 @@ def export_range_modal() -> rx.Component:
                         rx.vstack(
                             rx.text("Desde #", **label_style),
                             rx.input(
-                                value=ProductState.export_range_start,
-                                on_change=ProductState.set_export_range_start,
+                                default_value=ProductState.export_range_start,
+                                on_blur=ProductState.set_export_range_start,
                                 type="number", min="1",
                                 background=BG2, border=f"1px solid {BORDER}", border_radius="10px",
                                 color=TEXT, font_family=FONT, font_size="14px",
@@ -372,8 +372,8 @@ def export_range_modal() -> rx.Component:
                         rx.vstack(
                             rx.text("Hasta #", **label_style),
                             rx.input(
-                                value=ProductState.export_range_end,
-                                on_change=ProductState.set_export_range_end,
+                                default_value=ProductState.export_range_end,
+                                on_blur=ProductState.set_export_range_end,
                                 type="number",
                                 background=BG2, border=f"1px solid {BORDER}", border_radius="10px",
                                 color=TEXT, font_family=FONT, font_size="14px",
@@ -611,9 +611,10 @@ def list_detail_page() -> rx.Component:
                 ProductState.search_active,
                 rx.hstack(
                     rx.input(
+                        id="list-search",
                         placeholder="Buscar por referencia o tienda...",
-                        value=ProductState.search_query,
-                        on_change=ProductState.set_search,
+                        default_value=ProductState.search_query,
+                        on_change=ProductState.set_search.debounce(350),
                         auto_focus=True,
                         background=BG2, border=f"1px solid {BORDER}", border_radius="10px",
                         color=TEXT, font_family=FONT, font_size="14px",

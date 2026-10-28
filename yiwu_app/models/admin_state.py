@@ -24,6 +24,7 @@ class AdminState(AuthState):
     pw_confirm: str = ""
     pw_error: str = ""
     pw_success: str = ""
+    form_key: int = 0  # se incrementa para vaciar los inputs no controlados
 
     def on_load(self):
         self._load_user_from_token()
@@ -104,6 +105,7 @@ class AdminState(AuthState):
         self.pw_confirm = ""
         self.pw_error = ""
         self.pw_success = ""
+        self.form_key += 1
         self.show_pw_modal = True
 
     def close_pw_modal(self):
@@ -136,3 +138,4 @@ class AdminState(AuthState):
         self.pw_current = ""
         self.pw_new = ""
         self.pw_confirm = ""
+        self.form_key += 1

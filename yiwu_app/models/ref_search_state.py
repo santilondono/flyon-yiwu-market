@@ -106,11 +106,11 @@ class RefSearchState(AuthState):
 
     def clear_query(self):
         self.query = ""
-        return RefSearchState.run_search
+        return [RefSearchState.run_search, rx.set_value("ref-q", "")]
 
     def clear_store_filter(self):
         self.store_filter = ""
-        return RefSearchState.run_search
+        return [RefSearchState.run_search, rx.set_value("ref-store", "")]
 
     def run_search(self):
         if not self.has_search:

@@ -348,6 +348,7 @@ class ProductState(AuthState):
         self.search_active = False
         self.page = 0
         self._refresh_page()
+        return rx.set_value("list-search", "")
 
     def toggle_search(self):
         if self.search_active:

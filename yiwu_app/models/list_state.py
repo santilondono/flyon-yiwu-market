@@ -19,6 +19,7 @@ class ListState(AuthState):
     active_tab: str = "mis_listas"
     new_list_client: str = ""
     new_list_date: str = ""
+    form_key: int = 0  # cambia en cada apertura para remontar los inputs no controlados
 
     @rx.var
     def new_list_name_preview(self) -> str:
@@ -112,6 +113,7 @@ class ListState(AuthState):
         self.list_error = ""
         self.new_list_client = ""
         self.new_list_date = datetime.now().strftime("%d/%m/%Y")
+        self.form_key += 1
         self.show_list_modal = True
 
     def open_edit_modal(self, list_id: int, name: str, desc: str):
@@ -119,6 +121,7 @@ class ListState(AuthState):
         self.list_form_name = name
         self.list_form_desc = desc
         self.list_error = ""
+        self.form_key += 1
         self.show_list_modal = True
 
     def close_list_modal(self):
@@ -134,15 +137,12 @@ class ListState(AuthState):
         self.list_form_desc = v
 
     def set_new_list_client(self, v: str):
-        self.new_list_client = v
+        self.new_list_client = v.strip().upper()
         self.list_error = ""
 
     def set_new_list_date(self, v: str):
         self.new_list_date = v
         self.list_error = ""
-
-    def uppercase_client(self):
-        self.new_list_client = self.new_list_client.strip().upper()
 
     def save_list(self):
         if self.editing_list_id:
